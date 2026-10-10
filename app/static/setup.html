@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Setup · Battle Bridge</title>
+<link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/app.css">
+<script src="/static/setup.js" defer></script>
+</head>
+<body class="setup-page">
+<header class="topbar">
+  <div class="brand"><span class="mark-logo" aria-hidden="true"></span>BATTLE BRIDGE</div>
+  <div class="hostline"><span id="hostname">Setup</span></div>
+  <div class="topright">
+    <a class="btn ghost" href="/" id="to-bridge">Back to the bridge</a>
+    <button id="logout-btn" class="btn" type="button" hidden>Log out</button>
+  </div>
+</header>
+
+<main class="setup">
+  <nav class="setup-nav" id="setup-nav" hidden>
+    <a href="#access">Access</a>
+    <a href="#services">Services and keys</a>
+    <a href="#tiles">Tiles and links</a>
+    <a href="#pc">PC jobs</a>
+    <a href="#runner">Host runner</a>
+    <a href="#password">Password</a>
+  </nav>
+  <div class="setup-main">
+    <p class="flash" id="flash" hidden></p>
+
+    <section class="box setup-box" id="first-run" hidden>
+      <h2>Welcome</h2>
+      <form id="first-form" class="sform">
+        <p>Set a password for Battle Bridge.  Reading the dashboard is open on your home network.  Anything that changes something needs this password.</p>
+        <p class="sub">To prove it's you, enter the setup code from the container's log.  On the server, run:</p>
+        <code class="cmd">docker logs battle-bridge 2&gt;&amp;1 | grep "setup code"</code>
+        <label>Setup code <input type="text" id="first-code" inputmode="numeric" autocomplete="off" placeholder="1234-5678" required></label>
+        <label>New password <input type="password" id="first-pw" autocomplete="new-password" minlength="10" required></label>
+        <label>Same again <input type="password" id="first-pw2" autocomplete="new-password" minlength="10" required></label>
+        <p class="err" id="first-err" hidden></p>
+        <div class="row"><button type="submit" class="btn primary">Set the password</button></div>
+      </form>
+    </section>
+
+    <section class="box setup-box" id="login-box" hidden>
+      <h2>Log in</h2>
+      <form id="login-form" class="sform">
+        <p class="sub">The setup page needs the password.</p>
+        <label>Password <input type="password" id="login-pw" autocomplete="current-password" required></label>
+        <p class="err" id="login-err" hidden></p>
+        <div class="row"><button type="submit" class="btn primary">Log in</button></div>
+      </form>
+    </section>
+
+    <section class="box setup-box" id="access" hidden></section>
+    <section class="box setup-box" id="services" hidden></section>
+    <section class="box setup-box" id="tiles" hidden></section>
+    <section class="box setup-box" id="pc" hidden></section>
+    <section class="box setup-box" id="runner" hidden></section>
+    <section class="box setup-box" id="password" hidden></section>
+  </div>
+</main>
+</body>
+</html>

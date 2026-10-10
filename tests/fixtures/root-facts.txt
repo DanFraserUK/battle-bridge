@@ -1,0 +1,34 @@
+=== smart /dev/sda
+{"json_format_version": [1, 0], "smartctl": {"exit_status": 0}, "device": {"name": "/dev/sda", "type": "sat"}, "model_name": "WDC WD140EDGZ-11B1PA0", "serial_number": "SECRET123", "smart_status": {"passed": true}, "temperature": {"current": 31}, "power_on_time": {"hours": 18200}, "ata_smart_attributes": {"table": [{"id": 5, "name": "Reallocated_Sector_Ct", "raw": {"value": 0}}, {"id": 197, "name": "Current_Pending_Sector", "raw": {"value": 3}}, {"id": 198, "name": "Offline_Uncorrectable", "raw": {"value": 0}}]}, "ata_smart_self_test_log": {"standard": {"table": [{"type": {"string": "Short offline"}, "status": {"passed": true}, "lifetime_hours": 18190}]}}}
+
+=== smart /dev/nvme0
+{"json_format_version": [1, 0], "smartctl": {"exit_status": 0}, "device": {"name": "/dev/nvme0", "type": "nvme"}, "model_name": "Samsung SSD 980 PRO 1TB", "serial_number": "SECRET456", "smart_status": {"passed": true}, "temperature": {"current": 42}, "power_on_time": {"hours": 9100}, "nvme_smart_health_information_log": {"critical_warning": 0, "percentage_used": 3, "media_errors": 0}}
+
+=== btrfs /mnt/pool
+[/dev/sdb1].write_io_errs    0
+[/dev/sdb1].read_io_errs    0
+[/dev/sdb1].flush_io_errs    0
+[/dev/sdb1].corruption_errs    0
+[/dev/sdb1].generation_errs    0
+[/dev/sdc1].write_io_errs    0
+[/dev/sdc1].read_io_errs    2
+[/dev/sdc1].flush_io_errs    0
+[/dev/sdc1].corruption_errs    0
+[/dev/sdc1].generation_errs    0
+--- scrub
+UUID:             0b6f6a2e-1111-4c4c-9d9d-2a2a2a2a2a2a
+        no stats available
+Total to scrub:   98.72GiB
+Rate:             0.00B/s
+Error summary:    no errors found
+=== zfs
+tank	ONLINE	21.8T	9.1T	12.7T	41%
+backup	DEGRADED	3.6T	2.0T	1.6T	55%
+=== certs
+--- npm-1
+subject=CN = media.example.org
+notAfter=Nov 18 15:50:26 2026 GMT
+--- npm-2
+subject=CN=cloud.example.org
+notAfter=Jan  3 14:22:36 2027 GMT
+=== end

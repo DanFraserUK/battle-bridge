@@ -1,0 +1,30 @@
+[Unit]
+Description=Battle Bridge runner (facts and fixed jobs)
+After=docker.service network-online.target local-fs.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=@USER@
+Group=@GROUP@
+SupplementaryGroups=docker battlebridge
+Environment=BB_STATE_DIR=/var/lib/battle-bridge
+ExecStart=/usr/bin/python3 /usr/local/lib/battle-bridge/bb-runner.py
+Restart=on-failure
+RestartSec=10
+
+# Hardening.  NoNewPrivileges stays off: root-facts is reached through sudo.
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=yes
+ProtectKernelTunables=yes
+# Not ProtectKernelModules: it hides /usr/lib/modules, which the reboot check reads.
+ProtectControlGroups=yes
+# Must exist before start, or systemd refuses with 226/NAMESPACE.
+# install-runner.sh makes both.
+ReadWritePaths=/var/lib/battle-bridge /var/log/battle-bridge
+# sudo keeps timestamps here.  The leading - means "fine if missing".
+ReadWritePaths=-/run/sudo
+
+[Install]
+WantedBy=multi-user.target

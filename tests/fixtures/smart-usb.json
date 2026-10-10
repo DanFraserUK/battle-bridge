@@ -1,0 +1,1 @@
+{"json_format_version": [1, 0], "smartctl": {"exit_status": 2, "messages": [{"string": "/dev/sdc: Unknown USB bridge [0x152d:0x0578]", "severity": "error"}]}, "device": {"name": "/dev/sdc", "type": "scsi"}}

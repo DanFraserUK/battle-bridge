@@ -1,0 +1,95 @@
+# Battle Bridge.  Start it with:  docker compose up -d
+# Then open http://<this server's address>:8080 and follow the setup page.
+#
+# Home network only by default: it refuses clients outside private address
+# ranges, and refuses requests by hostname.  Both can be changed on the
+# setup page.  Don't publish it to the internet.
+
+services:
+  battle-bridge:
+    image: ghcr.io/danfraseruk/battle-bridge:latest
+    container_name: battle-bridge
+    restart: unless-stopped
+    depends_on:
+      - bb-dockerproxy
+    ports:
+      - "8080:8080"
+    # So it can reach other containers' published ports on this server.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      # Host stats, read-only.
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      # The host runner's facts and socket, if you install it.  Read-only.
+      - /var/lib/battle-bridge:/runner:ro
+      # Settings, login and 24 hours of history.
+      - battle-bridge-data:/data
+    networks:
+      - default
+      - bb-internal
+
+    # --- NVIDIA GPU: uncomment to show GPU use and temperature. ---------------
+    # Needs the NVIDIA Container Toolkit on the host.
+    # environment:
+    #   NVIDIA_DRIVER_CAPABILITIES: utility
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+    # --- Its own address on your LAN (macvlan), instead of a port. ------------
+    # Make the macvlan network first (see docs/NETWORK.md).  Then delete the
+    # "ports:" and "networks:" above, and use these instead:
+    # networks:
+    #   lan:
+    #     ipv4_address: 192.168.1.250
+    #   bb-internal: {}
+    # environment:
+    #   BB_LISTEN_PORT: 80
+    # sysctls:
+    #   net.ipv4.ip_unprivileged_port_start: "80"
+
+  # A read-only window onto Docker.  No address on your network, and it
+  # refuses every write.  Battle Bridge never sees the Docker socket itself.
+  bb-dockerproxy:
+    image: lscr.io/linuxserver/socket-proxy:latest
+    container_name: bb-dockerproxy
+    restart: unless-stopped
+    environment:
+      CONTAINERS: 1
+      IMAGES: 1
+      INFO: 1
+      NETWORKS: 1
+      POST: 0
+      # Read-only: lets it read cloudflare-ddns logs for the DDNS check.
+      ALLOW_LOGS: 1
+      LOG_LEVEL: warning
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    read_only: true
+    tmpfs:
+      - /run
+    networks:
+      - bb-internal
+
+networks:
+  bb-internal:
+    internal: true
+  # For the macvlan option above:
+  # lan:
+  #   external: true
+  #   name: your-macvlan-network
+
+volumes:
+  battle-bridge-data:

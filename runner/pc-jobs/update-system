@@ -1,0 +1,80 @@
+#!/bin/bash
+# Battle Bridge: system update.  Reached only from your PC's link handler,
+# over SSH, in a terminal, so sudo asks for the password there and never
+# goes near the web page.  Root-owned in /usr/local/lib/battle-bridge/pc-jobs/.
+# Logs to /var/log/battle-bridge/pc-jobs/.
+set -u
+LOG_DIR=/var/log/battle-bridge/pc-jobs
+log="$LOG_DIR/update-system-$(date +%Y%m%d-%H%M%S).log"
+touch "$log" 2>/dev/null || log=/dev/null
+B=$'\e[1m'; Y=$'\e[33m'; G=$'\e[32m'; R=$'\e[31m'; D=$'\e[2m'; N=$'\e[0m'
+
+note() { printf '%s\n' "$*" | tee -a "$log"; }
+step() { note ""; note "${B}== $*${N}"; }
+logged() { script -q -e -a -c "$1" "$log"; }
+
+. /etc/os-release 2>/dev/null
+fam=other
+for id in ${ID:-} ${ID_LIKE:-}; do
+  case "$id" in
+    arch|archlinux|endeavouros|manjaro|cachyos|garuda) fam=arch; break ;;
+    debian|ubuntu|linuxmint|pop|raspbian) fam=debian; break ;;
+    fedora|rhel|centos|rocky|almalinux) fam=fedora; break ;;
+  esac
+done
+
+note "${B}${Y}▶ System update on $(hostname)${N}  ${D}${PRETTY_NAME:-Linux}, $(date '+%a %d %b %H:%M:%S')${N}"
+
+if [ "$fam" = arch ]; then
+  step "Latest Arch news.  Read anything that says manual intervention first."
+  python3 - <<'PY' 2>/dev/null | tee -a "$log"
+import json, time
+try:
+    items = json.load(open("/var/lib/battle-bridge/facts.json"))["news"]["items"][:5]
+except Exception:
+    items = []
+for n in items:
+    print(f"  {time.strftime('%d %b', time.localtime(n.get('when') or 0))}  {n.get('title')}")
+if not items:
+    print("  (no headlines saved yet: https://archlinux.org/news/)")
+PY
+fi
+echo
+read -r -p "Carry on with the update? [y/N] " ok
+[[ "$ok" =~ ^[Yy]$ ]] || { note "Stopped before changing anything."; read -r -p "Press Enter to close." _; exit 0; }
+
+rc=0
+case "$fam" in
+  arch)
+    step "pacman -Syu"
+    logged "sudo pacman -Syu" || rc=$?
+    for helper in yay paru; do
+      if command -v "$helper" >/dev/null; then
+        step "$helper -Sua (AUR only, as you)"
+        logged "$helper -Sua" || rc=$?
+        break
+      fi
+    done ;;
+  debian)
+    step "apt update, then apt full-upgrade"
+    logged "sudo apt update && sudo apt full-upgrade" || rc=$? ;;
+  fedora)
+    step "dnf upgrade"
+    logged "sudo dnf upgrade --refresh" || rc=$? ;;
+  *)
+    note "${R}Battle Bridge doesn't know how to update ${PRETTY_NAME:-this system}.${N}"
+    rc=1 ;;
+esac
+
+step "Reboot needed?"
+if [ ! -d "/usr/lib/modules/$(uname -r)" ] && [ ! -d "/lib/modules/$(uname -r)" ]; then
+  note "${Y}Yes: the running kernel has been replaced.  Use Reboot in Battle Bridge.${N}"
+elif [ -f /run/reboot-required ]; then
+  note "${Y}Yes, the system says so.  Use Reboot in Battle Bridge.${N}"
+else
+  note "${G}Probably not.  Battle Bridge's reboot light will say within a minute.${N}"
+fi
+
+note ""
+if [ "$rc" -eq 0 ]; then note "${G}${B}Done.${N}"; else note "${R}${B}Finished with errors (exit $rc).${N}"; fi
+read -r -p "Press Enter to close." _

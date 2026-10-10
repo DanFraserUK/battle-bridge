@@ -1,0 +1,13 @@
+# Battle Bridge runner settings.  Everything here is optional: with nothing
+# set, it finds things for itself.  Restart the runner after a change:
+#   sudo systemctl restart bb-runner
+
+# The drives box.  By default it shows every real filesystem, one entry per
+# filesystem, leaving out /boot, /efi and Docker's own folders.
+# mounts = ["/", "/mnt/media", "/mnt/backup"]     # show exactly these
+# hide_mounts = ["/mnt/scratch"]                   # or hide a few
+
+# After-reboot checks.  By default it checks every drive /etc/fstab mounts
+# at boot, and the GPU in the first running container that asks for one.
+# after_reboot_mounts = ["/mnt/media"]
+# gpu_container = "jellyfin"

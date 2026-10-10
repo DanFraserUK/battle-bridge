@@ -1,0 +1,6 @@
+# Runs your own backup script now.  It must be root-owned, and runs as the
+# runner's user.
+label = "Back up now"
+group = "Backups"
+command = ["/usr/local/bin/backup-now"]
+confirm = "Start a backup now?  It runs in the background and can take a while."
