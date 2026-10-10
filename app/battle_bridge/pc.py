@@ -13,6 +13,7 @@ The folders are fixed when the handler is made, so a web page can only pick
 one by number.
 """
 
+import re
 import shlex
 import time
 
@@ -120,6 +121,10 @@ MimeType=x-scheme-handler/battlebridge;
 def installer(pc, page_address):
     """A script that installs the handler for the user who runs it."""
     body = handler(pc)
+    # Only ever an address or hostname, but it goes into a shell script, so
+    # anything else is dropped rather than trusted.
+    if not re.fullmatch(r"[A-Za-z0-9.:-]{1,253}", page_address or ""):
+        page_address = "this page's address"
     marker = "BATTLE_BRIDGE_HANDLER_END"
     return f"""#!/bin/bash
 # Installs the Battle Bridge link handler for you (not root):

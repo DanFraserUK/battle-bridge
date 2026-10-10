@@ -27,7 +27,7 @@
     const s = (live.services || {})[kind];
     if (!s) return { wait: true };
     if (!s.found) return { missing: true };
-    if (!s.configured) return { notset: true, container: s.container };
+    if (!s.configured) return { notset: true, reason: s.error, container: s.container };
     if (s.error) return { error: s.error, container: s.container };
     return { data: s.data, container: s.container };
   }
@@ -35,7 +35,11 @@
   function state(s, label) {
     if (s.wait) return pending(`${label}: waiting for the first answer…`);
     if (s.missing) return null;
-    if (s.notset) return h("p", { class: "pending" }, `${label}: found.  Add its key on the `, h("a", { href: "/setup#services" }, "setup page"), ".");
+    if (s.notset) {
+      const why = s.reason && !/no key/.test(s.reason) ? s.reason.replace(/ on the setup page$/, "") : "add its key";
+      return h("p", { class: "pending" }, `${label}: found.  ${why[0].toUpperCase()}${why.slice(1)} on the `,
+        h("a", { href: "/setup#services" }, "setup page"), ".");
+    }
     if (s.error) return problem(`${label}: ${s.error}`);
     return null;
   }

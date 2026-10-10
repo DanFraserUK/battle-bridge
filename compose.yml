@@ -12,8 +12,11 @@ services:
     restart: unless-stopped
     depends_on:
       - bb-dockerproxy
+    # IPv4 only.  Docker relays IPv6 clients through its own process, so
+    # they'd look like they came from Docker's 172.x address, which the
+    # home-network check allows.
     ports:
-      - "8080:8080"
+      - "0.0.0.0:8080:8080"
     # So it can reach other containers' published ports on this server.
     extra_hosts:
       - "host.docker.internal:host-gateway"

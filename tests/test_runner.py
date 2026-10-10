@@ -355,14 +355,15 @@ class TestRunner(unittest.TestCase):
         r = Runner(self.tmp.name, self.s)
         now = time.time()
         r.facts["updates"] = {"checked": now - 600, "items": []}
-        booted = facts.boot_time
+        booted, marker = facts.boot_time, distro.changed_marker
+        distro.changed_marker = lambda fam: None      # not this machine's real package log
         try:
             facts.boot_time = lambda s: now - 300        # booted after the last check
             self.assertTrue(r.due("updates", 86400))
             facts.boot_time = lambda s: now - 30         # but give it a minute to settle
             self.assertFalse(r.due("updates", 86400))
         finally:
-            facts.boot_time = booted
+            facts.boot_time, distro.changed_marker = booted, marker
 
     def test_broken_gatherer_is_reported(self):
         r = Runner(self.tmp.name, self.s)

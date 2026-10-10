@@ -34,9 +34,6 @@ for ts in range(now - 86400, now, 10):
         v[f"core.{i}"] = max(0, cpu + random.uniform(-4, 8))
     for k, val in v.items():
         rows.setdefault(k, []).append((k, ts, val))
-c = db.conn()
-c.execute("BEGIN")
-for series in rows.values():
-    c.executemany("INSERT INTO samples (series, ts, value) VALUES (?, ?, ?)", series)
-c.execute("COMMIT")
+db.conn().transaction([("INSERT INTO samples (series, ts, value) VALUES (?, ?, ?)", series)
+                       for series in rows.values()])
 print("seeded", sum(len(r) for r in rows.values()), "rows")

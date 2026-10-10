@@ -66,11 +66,10 @@ class Poller:
             raise services.ServiceError("not found")
         if container["state"] != "running":
             raise services.ServiceError(f"{container['name']} isn't running")
-        target = discovery.web_target(container)
-        url = discovery.address(container, target[0], self.cfg.host_gateway, target[2], "/") if target else None
+        url = discovery.service_url(container, self.cfg.host_gateway)
         if not url:
             raise services.ServiceError("no address found.  Set one on the setup page")
-        return url.rstrip("/")
+        return url
 
     def _loop(self):
         while not self._stop.is_set():

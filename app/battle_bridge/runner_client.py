@@ -34,7 +34,10 @@ class RunnerClient:
                 raise RunnerError("The job runner stopped answering.") from e
         if not line:
             raise RunnerError("The job runner closed the connection.")
-        return json.loads(line)
+        try:
+            return json.loads(line)
+        except ValueError:
+            raise RunnerError("The job runner sent an answer that couldn't be read.") from None
 
     def stream(self, rid, offset):
         """Yields reply objects until the run ends or the runner goes away."""
@@ -53,7 +56,10 @@ class RunnerClient:
                     return
                 if not line:
                     return
-                msg = json.loads(line)
+                try:
+                    msg = json.loads(line)
+                except ValueError:
+                    raise RunnerError("The job runner sent output that couldn't be read.") from None
                 yield msg
                 if "end" in msg or "error" in msg:
                     return

@@ -62,6 +62,9 @@
     if (J.es) { J.es.close(); J.es = null; }
     J.viewing = null;
     J.term.reset();
+    // PC job logs are written with plain line feeds (tee), not a terminal's
+    // CR LF, so each new line must also go back to the start.
+    J.term.options.convertEol = true;
     $("term-title").textContent = title;
     setStatus("", "");
     const es = new EventSource(url);
@@ -88,6 +91,7 @@
     J.viewing = id;
     J.offset = 0;
     J.term.reset();
+    J.term.options.convertEol = false;
     $("term-title").textContent = label || `Job ${id}`;
     setStatus("connecting…", "");
     connect();
@@ -160,13 +164,19 @@
     if (firstLoad || J.jobsSig !== JSON.stringify([J.jobs, J.services, J.containers, J.problems])) renderJobs();
     setButtonsBusy(busy);
     renderHistory();
-    if (J.open && busy && J.viewing !== J.current.id) attach(J.current.id, J.current.label);
+    // Show a job that's just started.  Only a new one: someone reading an
+    // older run or a PC log while a job runs keeps what they're reading.
+    if (J.open && busy && J.current.id !== J.lastStarted) {
+      J.lastStarted = J.current.id;
+      if (J.viewing !== J.current.id) attach(J.current.id, J.current.label);
+    }
   }
 
   function showLoggedOut() {
     $("jobs-pane").replaceChildren(BB.h("p", { class: "pending" }, "Log in to use the job runner."),
       BB.h("button", { type: "button", class: "btn primary", id: "drawer-login" }, "Log in"));
     $("history-pane").replaceChildren();
+    J.histSig = null;
     $("runner-state").textContent = "";
     J.jobs = [];
   }
@@ -240,11 +250,17 @@
   function renderHistory() {
     const h = BB.h;
     const pane = $("history-pane");
+    // Rebuilt only when something changed, so a click on a run isn't lost
+    // to a redraw.
+    const pcItems = ((((BB.lastLive || {}).facts) || {}).pc_jobs || {}).items || [];
+    const sig = JSON.stringify([J.history, J.viewing, pcItems]);
+    if (sig === J.histSig) return;
+    J.histSig = sig;
     const pcPart = BB.pcHistory ? BB.pcHistory() : [];
     if (!J.history.length) { pane.replaceChildren(h("p", { class: "pending" }, "No runs yet."), ...pcPart); return; }
     pane.replaceChildren(h("h3", { class: "hist-sub" }, "In this page"), h("ul", { class: "hist" }, J.history.map((r) => {
       const running = !r.finished;
-      const exit = running ? "running" : r.exit === 0 ? "ok" : `exit ${r.exit}`;
+      const exit = running ? "running" : r.interrupted ? "interrupted" : r.exit === 0 ? "ok" : `exit ${r.exit}`;
       const cls = running ? "v-ok" : r.exit === 0 ? "v-ok" : "v-bad";
       return h("li", {}, h("button", { type: "button", class: r.id === J.viewing ? "on" : null, "data-run": r.id },
         h("span", {}, r.label), h("span", { class: "hwhen" }, BB.when(r.started)), h("span", { class: `hexit ${cls}` }, exit)));
@@ -297,8 +313,6 @@
     clearInterval(J.pollTimer);
   }
   BB.openDrawer = openDrawer;
-  BB.startJob = run;
-  BB.jobsState = J;
 
   function setTab(t) {
     J.tab = t;

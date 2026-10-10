@@ -20,7 +20,10 @@ ROWS = [("pihole", "dns", "pihole/pihole:latest", "", "running"),
         ("myapp", "myapp", "myapp:local", "", "running"),
         ("whoami", "tools", "traefik/whoami:latest", "", "running"),
         ("oldthing", "gone", "busybox:latest", "", "exited"),
-        ("portainer", "", "portainer/portainer-ce:lts", "", "running")]
+        ("portainer", "", "portainer/portainer-ce:lts", "", "running"),
+        # An image that brings its own compose labels, claiming to be part of
+        # "media" with a compose file of its choosing.  Must be ignored.
+        ("sneaky", "media", "evil/baked:1", "", "running")]
 
 
 def out(*lines):
@@ -75,6 +78,8 @@ elif a[:2] == ["ps", "-a"] and "com.docker.compose.project" in j:
             for fn in ("compose.yml", "docker-compose.yml"):
                 if os.path.exists(os.path.join(wd, fn)):
                     files = os.path.join(wd, fn)
+        if name == "sneaky":
+            wd, files = "/srv/media/data", "/srv/media/data/x.yml"
         out("\t".join([name, proj, wd, files, image, upd, st]))
 elif a[:2] == ["ps", "-a"] and "{{.State}}" in j:
     for name, _p, _i, _u, st in ROWS:
@@ -89,6 +94,11 @@ elif a[:2] == ["ps", "-q"]:
     out("aaa111", "bbb222")
 elif a[:2] == ["ps", "--format"]:
     out(*[r[2] for r in ROWS if r[4] == "running"])
+elif a[:2] == ["image", "inspect"] and "Config.Labels" in j:
+    if a[-1] == "evil/baked:1":
+        out('{"com.docker.compose.project":"media","com.docker.compose.project.config_files":"/srv/media/data/x.yml"}')
+    else:
+        out('{"org.opencontainers.image.title":"x"}')
 elif a[:1] == ["inspect"]:
     if "RestartPolicy" in j:
         out("/oldthing\tno")

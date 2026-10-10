@@ -8,6 +8,7 @@ network.  Anything that changes something needs a login.
 
 import json
 import logging
+import math
 import mimetypes
 import time
 from http import HTTPStatus
@@ -113,12 +114,9 @@ class App:
         found = {}
         for kind in store_mod.SERVICE_KINDS:
             c = discovery.find_service(containers, kind)
-            target = discovery.web_target(c) if c else None
             found[kind] = {
                 "container": c["name"] if c else None,
-                "address": (discovery.address(c, target[0], self.cfg.host_gateway, target[2], "/").rstrip("/")
-                            if c and target and discovery.address(c, target[0], self.cfg.host_gateway, target[2], "/")
-                            else None),
+                "address": discovery.service_url(c, self.cfg.host_gateway) if c else None,
                 "override": (settings["services"].get(kind) or {}).get("url", ""),
             }
         folders = sorted({(c.get("labels") or {}).get("com.docker.compose.project.working_dir")
@@ -177,8 +175,13 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(body)
 
     def _json(self, data, status=HTTPStatus.OK, extra=None):
-        self._send(status, json.dumps(data, separators=(",", ":")),
-                   "application/json; charset=utf-8", extra)
+        try:
+            text = json.dumps(data, separators=(",", ":"), allow_nan=False)
+        except ValueError:
+            # A NaN or infinity from somewhere (a service, a panel).  Browsers
+            # can't parse those, so they go out as null instead.
+            text = json.dumps(_finite(data), separators=(",", ":"))
+        self._send(status, text, "application/json; charset=utf-8", extra)
 
     def _token(self):
         raw = self.headers.get("Cookie")
@@ -430,13 +433,9 @@ class Handler(BaseHTTPRequestHandler):
 
     def _change_password(self, body):
         a = self.app.auth
-        stored = self.app.db.get_setting("password_hash")
-        from .auth import check_password
-        if a.locked_for():
-            return self._json({"error": "Too many wrong passwords.  Try again later."}, HTTPStatus.FORBIDDEN)
-        if not check_password(str(body.get("current") or ""), stored):
-            a.failed(self.client_address[0])
-            return self._json({"error": "The current password is wrong."}, HTTPStatus.FORBIDDEN)
+        ok, err = a.check_current(body.get("current"), self.client_address[0])
+        if not ok:
+            return self._json({"error": err}, HTTPStatus.FORBIDDEN)
         new = body.get("new")
         if not isinstance(new, str) or len(new) < MIN_PASSWORD:
             return self._json({"error": f"Use at least {MIN_PASSWORD} characters."}, HTTPStatus.BAD_REQUEST)
@@ -496,6 +495,16 @@ class Handler(BaseHTTPRequestHandler):
         if self.app.poller:
             self.app.poller.forget("unifi")
         return self._json({"ok": True, "settings": new})
+
+
+def _finite(v):
+    if isinstance(v, float) and not math.isfinite(v):
+        return None
+    if isinstance(v, dict):
+        return {k: _finite(x) for k, x in v.items()}
+    if isinstance(v, (list, tuple)):
+        return [_finite(x) for x in v]
+    return v
 
 
 def _cookie(value, max_age):

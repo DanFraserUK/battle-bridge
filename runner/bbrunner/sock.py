@@ -22,6 +22,7 @@ from . import facts, jobs
 
 log = logging.getLogger("bb-runner.sock")
 MAX_LINE = 16 * 1024
+CHUNK = 256 * 1024
 
 
 class SocketServer:
@@ -80,8 +81,9 @@ class SocketServer:
         m = self.manager
         if op == "jobs":
             listed, problems = jobs.public_jobs(m.settings)
-            send({"jobs": listed, "problems": problems, "services": jobs.services(),
-                  "containers": jobs.containers(), **m.status()})
+            rows = jobs._docker_ps()
+            send({"jobs": listed, "problems": problems, "services": jobs.services(rows),
+                  "containers": jobs.containers(rows), **m.status()})
         elif op == "start":
             arg = req.get("arg")
             if arg is not None and not isinstance(arg, str):
@@ -91,8 +93,11 @@ class SocketServer:
             rid, offset = _int(req.get("id")), _int(req.get("offset"))
             for chunk, meta in m.stream(rid, max(0, offset)):
                 if chunk:
-                    send({"data": base64.b64encode(chunk).decode(), "offset": offset + len(chunk)})
-                    offset += len(chunk)
+                    # In pieces: a long log as one line would be too big to read back.
+                    for i in range(0, len(chunk), CHUNK):
+                        piece = chunk[i:i + CHUNK]
+                        send({"data": base64.b64encode(piece).decode(), "offset": offset + len(piece)})
+                        offset += len(piece)
                 elif meta is not None or chunk is None:
                     send({"end": meta})
                 else:
@@ -106,7 +111,8 @@ class SocketServer:
                     data = fh.read()[-2_000_000:]
             except OSError:
                 return send({"error": "No such log."})
-            send({"data": base64.b64encode(data).decode(), "offset": len(data)})
+            for i in range(0, len(data), CHUNK):
+                send({"data": base64.b64encode(data[i:i + CHUNK]).decode(), "offset": i + len(data[i:i + CHUNK])})
             send({"end": {"file": name}})
         elif op == "input":
             data = req.get("data")

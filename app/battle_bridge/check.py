@@ -60,7 +60,8 @@ def run(cfg, db, auth, store):
     except DockerError as e:
         bad += 1
         line(False, "Container list", str(e))
-    server = store.settings()["server_address"] or "<this page's address>"
+    # A stand-in address (from the documentation range) when none is set.
+    server = store.settings()["server_address"] or "192.0.2.1"
     links = store.settings()["links"]
     nolink = [c["name"] for c in containers if not discovery.tile_link(c, server, links)
               and not (discovery.known(c) and discovery.known(c)[1] is None)]

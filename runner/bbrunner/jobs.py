@@ -26,6 +26,10 @@ from . import dropins, facts as facts_mod
 
 LOG_DIR = os.environ.get("BB_LOG_DIR", "/var/log/battle-bridge/jobs")
 KEEP_RUNS = 200
+# A job that goes past either of these is stopped: a forgotten "Follow logs"
+# would otherwise grow in memory and on disk until something gave way.
+MAX_OUTPUT = 32 * 1024 * 1024
+MAX_FOLLOW_SECONDS = 2 * 3600
 # Images updated last, on their own.  Also the label battlebridge.update=last.
 UPDATE_LAST = ("pihole", "adguardhome", "unbound", "bind9", "technitium")
 
@@ -50,6 +54,28 @@ def _docker_ps():
     return rows
 
 
+_baked = {}     # image -> (when checked, has compose labels of its own)
+
+
+def _image_has_compose_labels(image):
+    """True if the image itself carries com.docker.compose labels.  Compose
+    sets those labels on the containers it makes.  An image that brings its
+    own could steer which compose files a job runs, so its containers are
+    left out of project discovery."""
+    hit = _baked.get(image)
+    if hit and time.time() - hit[0] < 600:
+        return hit[1]
+    try:
+        r = subprocess.run(["docker", "image", "inspect", "--format", "{{json .Config.Labels}}", image],
+                           capture_output=True, text=True, timeout=20)
+        labels = json.loads(r.stdout or "null") if r.returncode == 0 else None
+    except (OSError, subprocess.TimeoutExpired, ValueError):
+        labels = None
+    baked = any(k.startswith("com.docker.compose.") for k in (labels or {}))
+    _baked[image] = (time.time(), baked)
+    return baked
+
+
 def _image_name(image):
     last = image.split("@", 1)[0].rsplit("/", 1)[-1]
     return last.split(":", 1)[0].lower()
@@ -66,38 +92,47 @@ def _built_here(files):
     return False
 
 
-def projects():
+def projects(rows=None):
     """Every compose project Docker knows: where it lives, its containers,
-    whether it's built here, and whether it goes last in "Update all"."""
+    whether it's built here, and whether it goes last in "Update all".
+
+    A project whose containers disagree about its folder or files is marked
+    as a conflict and can't be used, rather than guessing which is right."""
     found = {}
-    for name, project, wd, files, image, update, _state in _docker_ps():
-        if not project or not wd:
+    for name, project, wd, files, image, update, _state in (rows if rows is not None else _docker_ps()):
+        if not project or not wd or _image_has_compose_labels(image):
             continue
-        p = found.setdefault(project, {"name": project, "dir": wd, "files": [], "containers": [],
-                                       "update_last": False})
-        p["containers"].append(name)
+        mine = []
         for f in files.split(","):
             f = f.strip()
-            if f and f not in p["files"]:
-                p["files"].append(f if os.path.isabs(f) else os.path.join(wd, f))
+            if f:
+                f = f if os.path.isabs(f) else os.path.join(wd, f)
+                if f not in mine:
+                    mine.append(f)
+        p = found.setdefault(project, {"name": project, "dir": wd, "files": mine, "containers": [],
+                                       "update_last": False, "conflict": False})
+        if p["dir"] != wd or p["files"] != mine:
+            p["conflict"] = True
+        p["containers"].append(name)
         if update == "last" or _image_name(image) in UPDATE_LAST:
             p["update_last"] = True
     out = []
     for p in sorted(found.values(), key=lambda x: x["name"].lower()):
-        p["missing"] = not os.path.isdir(p["dir"])
+        p["missing"] = p["conflict"] or not os.path.isdir(p["dir"])
         p["built_here"] = _built_here(p["files"])
         out.append(p)
     return out
 
 
-def containers():
-    return sorted((r[0] for r in _docker_ps()), key=str.lower)
+def containers(rows=None):
+    return sorted((r[0] for r in (rows if rows is not None else _docker_ps())), key=str.lower)
 
 
-def services():
+def services(rows=None):
     """What the page's pickers show."""
     return [{"folder": p["name"], "dir": p["dir"], "built_here": p["built_here"],
-             "containers": p["containers"], "missing": p["missing"]} for p in projects()]
+             "containers": p["containers"], "missing": p["missing"], "conflict": p["conflict"]}
+            for p in projects(rows)]
 
 
 @functools.lru_cache(maxsize=1)
@@ -146,6 +181,10 @@ def _update_one(p, _all):
 def _update_all(_p, all_projects):
     steps, later = [], []
     for p in all_projects:
+        if p["conflict"]:
+            steps.append(_note(f"{DIM}Its containers disagree about where its compose files are.  "
+                               f"Skipped.{RST}\r\n", title=p["name"]))
+            continue
         if p["missing"]:
             steps.append(_note(f"{DIM}Its folder {p['dir']} is gone.  Skipped.{RST}\r\n", title=p["name"]))
             continue
@@ -323,6 +362,8 @@ class Run:
         self.proc = None
         self.stopping = False
         self.interruptible = False
+        self.log_broken = False
+        self.note = None
         self.size = (40, 160)
 
     def meta(self):
@@ -349,9 +390,14 @@ class Manager:
     def _load_history(self):
         try:
             with open(self._hist_path()) as f:
-                return json.load(f)
+                history = json.load(f)
         except (OSError, ValueError):
             return []
+        # Runs that were going when the runner last stopped never finished.
+        for h in history:
+            if h.get("finished") is None:
+                h.update(finished=h.get("started"), exit=-1, interrupted=True)
+        return history
 
     def _save_history(self):
         tmp = self._hist_path() + ".tmp"
@@ -391,31 +437,58 @@ class Manager:
                         "running": self.current.id}
             run = Run(self.next_id, name, arg, label)
             run.interruptible = bool(jobs[name].get("interruptible"))
+            self.history.append(run.meta())
+            try:
+                self._save_history()
+            except OSError as e:
+                # A full disk, say.  Nothing has started, so nothing is left busy.
+                self.history.pop()
+                return {"error": f"Couldn't record the job, so it hasn't started: {e.strerror or e}"}
             self.next_id += 1
             self.current = run
-            self.history.append(run.meta())
-            self._save_history()
         threading.Thread(target=self._run, args=(run, steps), daemon=True).start()
+        if run.interruptible:
+            limit = threading.Timer(MAX_FOLLOW_SECONDS, self._time_limit, args=(run,))
+            limit.daemon = True
+            limit.start()
         return {"ok": True, "id": run.id}
+
+    def _time_limit(self, run):
+        if run.finished is None and not run.stopping:
+            run.note = f"Stopped after {MAX_FOLLOW_SECONDS // 3600} hours.  Start it again to carry on."
+            self.stop(run.id)
 
     def _emit(self, run, data, log):
         if isinstance(data, str):
             data = data.encode()
-        log.write(data)
-        log.flush()
+        if log is not None and not run.log_broken:
+            try:
+                log.write(data)
+                log.flush()
+            except OSError:
+                # Keep the job going and visible, just not saved.
+                run.log_broken = True
         with run.cond:
             run.buf += data
             run.cond.notify_all()
+        if len(run.buf) > MAX_OUTPUT and not run.stopping:
+            run.note = f"Stopped: more than {MAX_OUTPUT // 1048576} MB of output."
+            self.stop(run.id)
 
     def _run(self, run, steps):
         code = 0
-        with open(self.log_path(run.id), "wb") as log:
+        log = None
+        try:
+            try:
+                log = open(self.log_path(run.id), "wb")
+            except OSError as e:
+                run.log_broken = True
+                self._emit(run, f"{YEL}Can't save this job's log ({e.strerror or e}).  "
+                                f"It runs anyway.{RST}\r\n", None)
             w = lambda text: self._emit(run, text, log)  # noqa: E731
             w(f"{BOLD}{YEL}▶ {run.label}{RST}  {DIM}{time.strftime('%a %d %b %H:%M:%S')}{RST}\r\n")
             for step in steps:
                 if run.stopping:
-                    w(f"{YEL}Stopped.{RST}\r\n")
-                    code = code or 130
                     break
                 if step.title:
                     w(f"\r\n{BOLD}== {step.title}{RST}\r\n")
@@ -426,7 +499,6 @@ class Manager:
                     w(f"{DIM}$ {shown}{'  (in ' + step.cwd + ')' if step.cwd else ''}{RST}\r\n")
                     rc = self._pty_step(run, step, w)
                 if run.stopping:
-                    w(f"{YEL}Stopped.{RST}\r\n")
                     code = code or rc or 130
                     break
                 if rc != 0:
@@ -434,16 +506,39 @@ class Manager:
                     code = code or rc
                     if not step.keep_going:
                         break
+            if run.stopping:
+                code = code or 130
+                w(f"{YEL}{run.note or 'Stopped.'}{RST}\r\n")
+            if run.log_broken and log is not None:
+                w(f"{YEL}Part of this job's log couldn't be saved (is the disk full?).{RST}\r\n")
             w(f"\r\n{GRN if code == 0 else RED}{BOLD}{'Done.' if code == 0 else 'Finished with errors.'}{RST}\r\n")
-        with self.lock:
-            run.finished = time.time()
-            run.exit = code
-            for h in self.history:
-                if h["id"] == run.id:
-                    h.update(run.meta())
-            self._save_history()
-        with run.cond:
-            run.cond.notify_all()
+        except Exception as e:
+            # Whatever went wrong, the job must still end, or the runner stays busy.
+            code = code or 1
+            try:
+                self._emit(run, f"\r\n{RED}The runner hit a problem: {type(e).__name__}: {e}{RST}\r\n", log)
+            except Exception:
+                pass
+        finally:
+            if log is not None:
+                try:
+                    log.close()
+                except OSError:
+                    pass
+            ended = time.time()
+            with self.lock:
+                run.exit = code
+                for h in self.history:
+                    if h["id"] == run.id:
+                        h.update(run.meta(), finished=ended)
+                try:
+                    self._save_history()
+                except OSError:
+                    pass
+                # Last: anyone waiting on finished sees the history already saved.
+                run.finished = ended
+            with run.cond:
+                run.cond.notify_all()
 
     def _func_step(self, run, step, w):
         try:

@@ -44,16 +44,22 @@ class Sampler:
 
     def _live_loop(self):
         while not self._stop.is_set():
-            self.tick_live()
+            try:
+                self.tick_live()
+            except Exception:   # never let one bad reading stop the loop
+                log.exception("live readings failed")
             self._stop.wait(self.cfg.live_seconds)
 
     def _slow_loop(self):
         last_prune = 0
         while not self._stop.is_set():
-            self.tick_slow()
-            if time.time() - last_prune > 3600:
-                self.db.prune(self.cfg.history_hours * 3600)
-                last_prune = time.time()
+            try:
+                self.tick_slow()
+                if time.time() - last_prune > 3600:
+                    self.db.prune(self.cfg.history_hours * 3600)
+                    last_prune = time.time()
+            except Exception:   # a full disk, say: carry on, and catch up when it's fixed
+                log.exception("slow readings failed")
             self._stop.wait(self.cfg.sample_seconds)
 
     def tick_live(self):

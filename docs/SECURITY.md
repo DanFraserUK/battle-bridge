@@ -55,21 +55,28 @@ your password in the terminal, over SSH.  It never reaches the web page.
 ## The web side
 
 - Clients must be on an allowed network (private ranges by default).
+  The published port is IPv4 only: Docker passes IPv6 clients through a
+  relay of its own, which would make them look like Docker's own 172.x
+  address and so pass the check.  Rootless Docker relays every client that
+  way, so there, set the allowed networks to your LAN alone.
 - Requests must use an address, or a hostname you've allowed.  This stops
   DNS rebinding: a page elsewhere can't point a name at your server and
   reach it through your browser.
 - Every change needs the login.  Writes must carry a custom header and come
   from the same origin.  Session cookies are `HttpOnly` and
   `SameSite=Strict`.
-- Five wrong passwords (or setup codes) in fifteen minutes lock logins for
-  fifteen minutes.
+- Five wrong passwords (or setup codes) in fifteen minutes lock logins until
+  fifteen minutes after the first of those five.  Guesses are checked one at
+  a time, so sending many at once doesn't get round it.
 - The first password needs a setup code from the container's log, so
   nobody else on the network can set it first.
 - Settings saves quote a revision number, so an old tab can't overwrite
   newer changes.
 - Keys for other services are stored in the container's database volume and
   are never sent to the browser.  The setup page only learns whether one is
-  set.  The UniFi key is only sent once the gateway's certificate is pinned.
+  set.  The UniFi key is only sent over https, once the gateway's
+  certificate is pinned, and the pin is checked on the same connection that
+  carries the key.  No request carrying a key follows a redirect.
 - A strict Content Security Policy: scripts, styles and data from the page's
   own address only, no inline scripts or styles, no framing.
 - Everything shown from elsewhere (container names, service data, logs) is
