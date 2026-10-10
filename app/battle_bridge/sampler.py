@@ -120,6 +120,9 @@ class Sampler:
             values[f"ctr.{c['name']}.cpu"] = c["cpu"]
             if c["gpu"] is not None:
                 values[f"ctr.{c['name']}.gpu"] = c["gpu"]
+            if c["net_rx"] is not None:
+                values[f"ctr.{c['name']}.rx"] = c["net_rx"]
+                values[f"ctr.{c['name']}.tx"] = c["net_tx"]
             if c["mem"] is not None:
                 values[f"ctr.{c['name']}.mem"] = c["mem"] / 1048576
         self.db.add_samples(int(time.time()), values)

@@ -34,7 +34,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--fg);
-  font: 17px/1.4 var(--sans);
+  font: 16px/1.4 var(--sans);
   overflow: hidden;
 }
 button { font: inherit; color: inherit; }
@@ -111,7 +111,7 @@ button { font: inherit; color: inherit; }
   display: grid;
   gap: var(--gap);
   grid-template-columns: repeat(12, minmax(0, 1fr));
-  grid-template-rows: 430px minmax(0, 1fr) 360px;
+  grid-template-rows: 470px minmax(0, 1fr) 335px;
   grid-template-areas:
     "system system system system system system drives drives drives updates updates updates"
     "services services services services services services services services services scheduled scheduled scheduled"
@@ -228,30 +228,30 @@ button { font: inherit; color: inherit; }
 .tiles {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-  gap: 10px;
+  gap: 8px;
   overflow: auto;
   align-content: start;
   min-height: 0;
 }
 .tile {
   display: grid;
-  grid-template-columns: 52px minmax(0, 1fr) auto;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
   gap: 2px 12px;
   align-items: center;
   background: var(--card-2);
   border: 1px solid var(--line);
   border-left: 4px solid var(--cyan);
   border-radius: 8px;
-  padding: 12px 14px;
+  padding: 8px 12px;
 }
 .tile.st-warn { border-left-color: var(--amber); }
 .tile.st-down { border-left-color: var(--red); }
 .mono-icon {
-  grid-row: span 3;
-  width: 52px; height: 52px;
+  grid-row: span 2;
+  width: 44px; height: 44px;
   border-radius: 10px;
   display: grid; place-items: center;
-  font-weight: 800; font-size: 17px;
+  font-weight: 800; font-size: 15px;
   color: #14181f;
 }
 .ic-0 { background: var(--gold); }
@@ -269,18 +269,24 @@ button { font: inherit; color: inherit; }
 .tile.st-warn .state { color: var(--amber); }
 .tile.st-down .state { color: var(--red); }
 .tile .nums {
-  grid-column: 2 / span 2; grid-row: 3;
-  display: flex; gap: 6px; margin-top: 4px;
+  grid-column: 1 / -1; grid-row: 3;
+  display: flex; gap: 4px; margin-top: 5px;
 }
 .tile .nums button {
   background: none; border: 1px solid var(--line); border-radius: 6px;
-  padding: 1px 7px; font-size: 13px; color: var(--fg); cursor: pointer;
+  padding: 1px 5px; font-size: 12px; color: var(--fg); cursor: pointer; white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
 .tile .nums button:hover { border-color: var(--orange); }
-.tile .nums button.busy { border-color: var(--gold); color: var(--gold); animation: busy-pulse 1.6s ease-in-out infinite; }
+/* Lit while busy: gold for CPU and GPU, cyan for network. */
+.tile .nums button.busy {
+  --glow: 253, 213, 15;
+  border-color: rgb(var(--glow)); color: rgb(var(--glow));
+  animation: busy-pulse 1.2s ease-in-out infinite;
+}
+.tile .nums button.net.busy { --glow: 110, 201, 215; }
 @keyframes busy-pulse {
-  50% { box-shadow: 0 0 6px 1px rgba(253, 213, 15, .55); }
+  50% { background: rgba(var(--glow), .28); box-shadow: 0 0 10px 2px rgba(var(--glow), .8); }
 }
 @media (prefers-reduced-motion: reduce) {
   .tile .nums button.busy { animation: none; }
@@ -373,13 +379,13 @@ button { font: inherit; color: inherit; }
 .minor.first { border-top: 0; padding-top: 0; margin-top: 0; }
 .ulist { color: var(--muted); font-size: 14px; margin: -4px 0 0 32px; }
 
-.drive { display: grid; gap: 3px; }
+.drive { display: grid; gap: 1px; }
 .dhead { display: flex; align-items: baseline; gap: 10px; }
 .dmount { color: var(--muted); font-size: 14px; font-family: var(--mono); }
 .dhealth { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; }
 .dhealth .mark { width: 16px; height: 16px; font-size: 11px; }
 .dnums { display: flex; justify-content: space-between; color: var(--muted); font-size: 14px; }
-.drive .bar { height: 10px; margin-top: 2px; }
+.drive .bar { height: 10px; margin-top: 0; }
 
 .news { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 15px; }
 .news li { display: grid; grid-template-columns: 64px 1fr; gap: 8px; }

@@ -248,6 +248,7 @@ class TestDocker(unittest.TestCase):
         with FakeDocker(23751, "--trouble") as fd:
             d = DockerCollector(f"http://127.0.0.1:{fd.port}")
             d.snapshot()
+            time.sleep(0.05)
             items = {c["name"]: c for c in d.snapshot()}
         self.assertEqual(d.hostname, "homelab")
         self.assertEqual(items["pihole"]["ip"], "192.168.1.200")        # macvlan address
@@ -255,6 +256,9 @@ class TestDocker(unittest.TestCase):
         self.assertEqual(items["jellyfin"]["ports"], [{"private": 8096, "public": 8096}])
         self.assertTrue(items["plex"]["host_network"])
         self.assertTrue(items["plex"]["gpu_capable"])
+        self.assertIsNone(items["plex"]["net_rx"])                       # host network: no counters
+        self.assertGreater(items["jellyfin"]["net_tx"], 0)
+        self.assertGreater(items["sonarr"]["net_rx"], 0)
         self.assertEqual(items["seerr"]["state"], "exited")
         self.assertTrue(items["myapp"]["built_here"])
         self.assertFalse(items["sonarr"]["built_here"])

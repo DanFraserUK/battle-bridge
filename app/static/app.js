@@ -26,6 +26,14 @@ function fmtRate(n) {
   while (v >= 1000 && i < u.length - 1) { v /= 1000; i++; }
   return `${v.toFixed(v < 10 && i > 0 ? 1 : 0)} ${u[i]}`;
 }
+// Short form for tiles: bits per second without the unit, so "12k", "1.2M".
+function fmtRateShort(n) {
+  if (n == null) return "–";
+  const u = ["", "k", "M", "G"];
+  let v = n * 8, i = 0;
+  while (v >= 1000 && i < u.length - 1) { v /= 1000; i++; }
+  return `${v.toFixed(v < 10 && i > 0 ? 1 : 0)}${u[i]}`;
+}
 function fmtDuration(sec) {
   if (sec == null || sec < 0) return "–";
   const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600), m = Math.floor((sec % 3600) / 60);
@@ -240,7 +248,21 @@ function makeTile(c) {
   gpu.dataset.unit = "%";
   gpu.title = "GPU, its busiest engine (compute, encode or decode).  Click for 24 hours.";
   gpu.hidden = true;
-  nums.append(cpu, mem, gpu);
+  const rx = document.createElement("button");
+  rx.type = "button";
+  rx.className = "net";
+  rx.dataset.series = `ctr.${c.name}.rx`;
+  rx.dataset.label = `${c.name} network in`;
+  rx.dataset.unit = "B/s";
+  rx.title = "Network in, bits per second.  Click for 24 hours.";
+  const tx = document.createElement("button");
+  tx.type = "button";
+  tx.className = "net";
+  tx.dataset.series = `ctr.${c.name}.tx`;
+  tx.dataset.label = `${c.name} network out`;
+  tx.dataset.unit = "B/s";
+  tx.title = "Network out, bits per second.  Click for 24 hours.";
+  nums.append(cpu, mem, gpu, rx, tx);
   t.append(ic, name, st, meta, nums);
   return t;
 }
@@ -279,13 +301,17 @@ function updateTile(t, c, now) {
   if (c.built_here) meta += " · built here";
   if (c.restarts) meta += ` · ${c.restarts} restarts`;
   setText(t.children[3], meta);
-  const [cpuBtn, memBtn, gpuBtn] = t.children[4].children;
+  const [cpuBtn, memBtn, gpuBtn, rxBtn, txBtn] = t.children[4].children;
   setText(cpuBtn, c.cpu == null ? "– CPU" : `${c.cpu.toFixed(1)}% CPU`);
   cpuBtn.classList.toggle("busy", busy(c.cpu));
   setText(memBtn, c.mem == null ? "– mem" : fmtBytes(c.mem, 0));
   gpuBtn.hidden = c.gpu == null;
   if (c.gpu != null) setText(gpuBtn, `${c.gpu.toFixed(1)}% GPU`);
   gpuBtn.classList.toggle("busy", busy(c.gpu));
+  setText(rxBtn, `↓${fmtRateShort(c.net_rx)}`);
+  rxBtn.classList.toggle("busy", c.net_rx != null && fmtRateShort(c.net_rx) !== "0");
+  setText(txBtn, `↑${fmtRateShort(c.net_tx)}`);
+  txBtn.classList.toggle("busy", c.net_tx != null && fmtRateShort(c.net_tx) !== "0");
 }
 
 // Lit when the figure on the button isn't 0.0.
