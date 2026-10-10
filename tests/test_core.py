@@ -91,6 +91,7 @@ class TestStore(Temp):
                     {"pc": {"folders": ["/a/../etc"]}}, {"services": {"rm": {"url": "http://x"}}}, {"nope": 1}]:
             with self.assertRaises(store_mod.Invalid, msg=bad):
                 s.save(bad, s.settings()["rev"])
+        s.save({"links": {"app": "https://{server}:8443/"}}, s.settings()["rev"])
         s.reset_access()
         self.assertTrue(s.client_allowed("10.0.0.1"))
 
@@ -177,6 +178,9 @@ class TestDiscovery(unittest.TestCase):
                    labels={"battlebridge.port": "5000", "battlebridge.path": "app"})
         self.assertEqual(link(c, s), "http://192.168.1.5:5001/app")
         self.assertEqual(link(self.c(labels={"battlebridge.url": "https://{server}:1/"}), s), "https://192.168.1.5:1/")
+        # A label from an image can't make a script link.
+        self.assertIsNone(link(self.c(labels={"battlebridge.url": "javascript:alert(1)"}), s))
+        self.assertIsNone(link(self.c(labels={"battlebridge.url": "http://x/\"onclick=x"}), s))
         self.assertIsNone(link(self.c(image="pihole", ip="1.2.3.4", labels={"battlebridge.link": "none"}), s))
         self.assertEqual(link(c, s, {"x": "http://elsewhere/"}), "http://elsewhere/")
         self.assertIsNone(link(c, s, {"x": "none"}))

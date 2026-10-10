@@ -18,6 +18,8 @@ import socket
 import threading
 import time
 
+SAFE_URL = re.compile(r"https?://[A-Za-z0-9._~:/?#\[\]@!&()*+,;=%-]{1,500}")
+
 # Image name (the last part, no tag) -> (label, port, path, scheme).
 # port None means "no web page".
 KNOWN = {
@@ -206,7 +208,9 @@ def tile_link(container, server, overrides=None, probed=None):
     if lab.get("battlebridge.link", "").lower() in ("none", "false", "no", "off"):
         return None
     if lab.get("battlebridge.url"):
-        return lab["battlebridge.url"].replace("{server}", _host(server))
+        # Labels can come baked into an image, so only plain web links count.
+        url = lab["battlebridge.url"].replace("{server}", _host(server))
+        return url if SAFE_URL.fullmatch(url) else None
     target = web_target(container)
     if target:
         port, path, scheme = target

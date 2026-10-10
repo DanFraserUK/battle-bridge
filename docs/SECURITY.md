@@ -41,7 +41,7 @@ protection is the fixed list and the socket: only processes in the
 container's group can connect, and the list has no "run this" job.
 
 **root-facts** is the only thing that runs as root, through one sudoers
-line.  It takes no arguments and only reads: `smartctl`, `btrfs`, `zpool`
+line, which allows it with no arguments at all.  It only reads: `smartctl`, `btrfs`, `zpool`
 and the dates on Nginx Proxy Manager's certificates.
 
 **Drop-in jobs** are read only from root-owned files that nobody else can
@@ -72,6 +72,10 @@ your password in the terminal, over SSH.  It never reaches the web page.
   set.  The UniFi key is only sent once the gateway's certificate is pinned.
 - A strict Content Security Policy: scripts, styles and data from the page's
   own address only, no inline scripts or styles, no framing.
+- Everything shown from elsewhere (container names, service data, logs) is
+  set as text, never as HTML.  Links from Docker labels must be plain
+  http:// or https:// addresses, because labels can come baked into an
+  image you didn't write.
 
 ## Outside fetches
 

@@ -254,7 +254,7 @@ def _url(v, what):
     v = str(v or "").strip()
     if not v:
         return ""
-    if not re.fullmatch(r"https?://[A-Za-z0-9._~:/?#\[\]@!&()*+,;=%-]{1,500}", v):
+    if not re.fullmatch(r"https?://[A-Za-z0-9._~:/?#\[\]@!&()*+,;=%{}-]{1,500}", v):
         raise Invalid(f"{what} must be a full http:// or https:// address.")
     return v
 

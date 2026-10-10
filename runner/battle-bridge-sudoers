@@ -1,3 +1,4 @@
 # Battle Bridge.  One fixed, root-owned script that only reads.
-# Installed as /etc/sudoers.d/battle-bridge (mode 440).
-@USER@ ALL=(root) NOPASSWD: /usr/local/lib/battle-bridge/root-facts
+# Installed as /etc/sudoers.d/battle-bridge (mode 440).  The "" means it
+# may be run with no arguments at all.
+@USER@ ALL=(root) NOPASSWD: /usr/local/lib/battle-bridge/root-facts ""
