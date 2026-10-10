@@ -2,14 +2,15 @@ name: Release image
 
 # Publishing a GitHub release builds the image and pushes it to GitHub's
 # registry as ghcr.io/<owner>/battle-bridge, tagged with the version
-# (1.2.3, 1.2, 1) and latest.
+# (1.2.3, 1.2, 1) and latest.  Then it attaches compose.yml to the release,
+# so .../releases/latest/download/compose.yml always gets the newest.
 
 on:
   release:
     types: [published]
 
 permissions:
-  contents: read
+  contents: write     # to attach compose.yml to the release
   packages: write
 
 jobs:
@@ -47,3 +48,7 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+      - name: Attach compose.yml to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" compose.yml --clobber --repo "$GITHUB_REPOSITORY"

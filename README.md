@@ -33,11 +33,16 @@ desktop over SSH instead, so your password never goes near the web page.
 
 ## Setup
 
-1. Download [compose.yml](compose.yml) into a new folder, then start it:
+1. On the server, make a folder, download `compose.yml` from the
+   [latest release](https://github.com/DanFraserUK/battle-bridge/releases/latest)
+   and start it:
 
    ```bash
-   docker compose up -d
+   mkdir battle-bridge && cd battle-bridge && curl -fsSLO https://github.com/DanFraserUK/battle-bridge/releases/latest/download/compose.yml && docker compose up -d
    ```
+
+   Want an NVIDIA GPU shown, or its own LAN address?  Uncomment those parts
+   of `compose.yml` first.
 
 2. Open `http://<your server's address>:8080`.  The setup page asks for a
    setup code to prove it's you.  Get it with
@@ -59,8 +64,9 @@ desktop over SSH instead, so your password never goes near the web page.
 `docker exec battle-bridge python3 -m battle_bridge check` tries every data
 source once and says plainly what works.
 
-To update: `docker compose pull && docker compose up -d`, then run the
-step 3 line again if you use the host runner.
+To update: `cd battle-bridge && docker compose pull && docker compose up -d`,
+then run the step 3 line again if you use the host runner.  To stay on one
+version, change `latest` in `compose.yml` to a version such as `1.0.0`.
 
 ## How links are found
 

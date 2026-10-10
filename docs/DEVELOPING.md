@@ -49,8 +49,12 @@ if it isn't the default.
 
 Bump `VERSION` in both `app/battle_bridge/__init__.py` and
 `runner/bbrunner/__init__.py`, then publish a GitHub release tagged with the
-same version.  The release workflow builds the image for amd64 and arm64 and
-pushes it to `ghcr.io/<owner>/battle-bridge`.
+same version (`1.0.0` or `v1.0.0`).  The release workflow checks the
+versions match, builds the image for amd64 and arm64, pushes it to
+`ghcr.io/<owner>/battle-bridge`, and attaches `compose.yml` to the release.
+
+The first time, the image is a private package.  Make it public once:
+the package's page on GitHub, Package settings, Change visibility.
 
 ## Rules of the house
 
