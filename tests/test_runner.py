@@ -338,15 +338,31 @@ class TestRunner(unittest.TestCase):
         r = Runner(self.tmp.name, self.s)
         now = time.time()
         r.facts["updates"] = {"checked": now - 600, "items": []}
-        marker = distro.changed_marker
+        marker, booted = distro.changed_marker, facts.boot_time
         distro.changed_marker = lambda fam: self.s.pacman_log
+        # A long-running machine: a just-booted one (a CI runner) would
+        # rightly rerun the check after its boot whatever pacman did.
+        facts.boot_time = lambda s: now - 86400
         try:
             os.utime(self.s.pacman_log, (now - 300, now - 300))
             self.assertTrue(r.due("updates", 86400))
             os.utime(self.s.pacman_log, (now - 900, now - 900))
             self.assertFalse(r.due("updates", 86400))
         finally:
-            distro.changed_marker = marker
+            distro.changed_marker, facts.boot_time = marker, booted
+
+    def test_updates_rerun_after_boot(self):
+        r = Runner(self.tmp.name, self.s)
+        now = time.time()
+        r.facts["updates"] = {"checked": now - 600, "items": []}
+        booted = facts.boot_time
+        try:
+            facts.boot_time = lambda s: now - 300        # booted after the last check
+            self.assertTrue(r.due("updates", 86400))
+            facts.boot_time = lambda s: now - 30         # but give it a minute to settle
+            self.assertFalse(r.due("updates", 86400))
+        finally:
+            facts.boot_time = booted
 
     def test_broken_gatherer_is_reported(self):
         r = Runner(self.tmp.name, self.s)

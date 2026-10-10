@@ -16,7 +16,7 @@ jobs:
   image:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: The release tag matches the code's version
         run: |
           tag="${GITHUB_REF_NAME#v}"
