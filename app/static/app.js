@@ -233,7 +233,14 @@ function makeTile(c) {
   mem.dataset.label = `${c.name} memory`;
   mem.dataset.unit = "MiB";
   mem.title = "Memory.  Click for 24 hours.";
-  nums.append(cpu, mem);
+  const gpu = document.createElement("button");
+  gpu.type = "button";
+  gpu.dataset.series = `ctr.${c.name}.gpu`;
+  gpu.dataset.label = `${c.name} GPU`;
+  gpu.dataset.unit = "%";
+  gpu.title = "GPU, its busiest engine (compute, encode or decode).  Click for 24 hours.";
+  gpu.hidden = true;
+  nums.append(cpu, mem, gpu);
   t.append(ic, name, st, meta, nums);
   return t;
 }
@@ -272,9 +279,18 @@ function updateTile(t, c, now) {
   if (c.built_here) meta += " · built here";
   if (c.restarts) meta += ` · ${c.restarts} restarts`;
   setText(t.children[3], meta);
-  const [cpuBtn, memBtn] = t.children[4].children;
+  const [cpuBtn, memBtn, gpuBtn] = t.children[4].children;
   setText(cpuBtn, c.cpu == null ? "– CPU" : `${c.cpu.toFixed(1)}% CPU`);
+  cpuBtn.classList.toggle("busy", busy(c.cpu));
   setText(memBtn, c.mem == null ? "– mem" : fmtBytes(c.mem, 0));
+  gpuBtn.hidden = c.gpu == null;
+  if (c.gpu != null) setText(gpuBtn, `${c.gpu.toFixed(1)}% GPU`);
+  gpuBtn.classList.toggle("busy", busy(c.gpu));
+}
+
+// Lit when the figure on the button isn't 0.0.
+function busy(v) {
+  return v != null && v.toFixed(1) !== "0.0";
 }
 
 function renderServices(list, err) {

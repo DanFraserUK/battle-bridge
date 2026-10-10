@@ -74,7 +74,8 @@ class DockerCollector:
                 "health": None,
                 "started": None,
                 "restarts": None,
-                "gpu": False,
+                "gpu_capable": False,
+                "gpu": None,
                 "cpu": None,
                 "mem": None,
                 "mem_limit": None,
@@ -85,7 +86,10 @@ class DockerCollector:
                 entry["health"] = (st.get("Health") or {}).get("Status")
                 entry["started"] = _epoch(st.get("StartedAt"))
                 entry["restarts"] = info.get("RestartCount")
-                entry["gpu"] = _uses_gpu(info.get("HostConfig") or {})
+                env = (info.get("Config") or {}).get("Env") or []
+                # "utility" only means it can read nvidia-smi, like Battle Bridge itself.
+                monitor_only = "NVIDIA_DRIVER_CAPABILITIES=utility" in env
+                entry["gpu_capable"] = not monitor_only and _uses_gpu(info.get("HostConfig") or {})
             except DockerError:
                 pass
             if entry["state"] == "running":

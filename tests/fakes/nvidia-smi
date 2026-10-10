@@ -1,4 +1,10 @@
 #!/bin/sh
 # Stand-in for nvidia-smi, with a made-up RTX 3060.
+if [ "$1" = "pmon" ]; then
+  echo "# gpu         pid   type     sm    mem    enc    dec    jpg    ofa    command"
+  echo "# Idx           #    C/G      %      %      %      %      %      %    name"
+  echo "    0          -     -      -      -      -      -      -      -    -"
+  exit 0
+fi
 u=$(( $(date +%S) % 40 ))
 echo "NVIDIA GeForce RTX 3060, $u, $(( 30 + u / 4 )), $(( 300 + u * 10 )), 12288, 22.5, 0"

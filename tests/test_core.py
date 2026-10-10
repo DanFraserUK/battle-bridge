@@ -20,6 +20,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "app"))
 
 from battle_bridge import VERSION, auth as auth_mod, config, discovery, store as store_mod  # noqa: E402
+from battle_bridge.collectors import gpu  # noqa: E402
 from battle_bridge.collectors.docker import DockerCollector  # noqa: E402
 from battle_bridge.collectors.host import HostCollector  # noqa: E402
 from battle_bridge.db import DB  # noqa: E402
@@ -253,7 +254,7 @@ class TestDocker(unittest.TestCase):
         self.assertIsNone(items["jellyfin"]["ip"])                       # bridge: no LAN address
         self.assertEqual(items["jellyfin"]["ports"], [{"private": 8096, "public": 8096}])
         self.assertTrue(items["plex"]["host_network"])
-        self.assertTrue(items["plex"]["gpu"])
+        self.assertTrue(items["plex"]["gpu_capable"])
         self.assertEqual(items["seerr"]["state"], "exited")
         self.assertTrue(items["myapp"]["built_here"])
         self.assertFalse(items["sonarr"]["built_here"])
@@ -261,6 +262,37 @@ class TestDocker(unittest.TestCase):
         self.assertEqual(items["sonarr"]["labels"]["com.docker.compose.project"], "downloads")
         self.assertIsNotNone(items["plex"]["cpu"])
         self.assertEqual(list(items)[0], "pihole")                      # LAN addresses first
+
+
+PMON = """# gpu         pid   type     sm    mem    enc    dec    jpg    ofa    command
+# Idx           #    C/G      %      %      %      %      %      %    name
+    0     242640     C      3      1     12     20      -      -    ffmpeg
+    0     242700     C      -      -      -      -      -      -    ffmpeg
+    0       3100     C      -      -      5      -      -      -    Plex Transcoder
+"""
+
+
+class TestGpu(unittest.TestCase):
+    def test_parse_pmon(self):
+        p = gpu.parse_pmon(PMON)
+        self.assertEqual(p[242640], {"sm": 3.0, "enc": 12.0, "dec": 20.0})
+        self.assertEqual(p[242700], {"sm": 0.0, "enc": 0.0, "dec": 0.0})
+
+    def test_nothing_running(self):
+        self.assertEqual(gpu.parse_pmon(PMON.splitlines()[0] + "\n    0  -  -  -  -  -  -  -  -  -\n"), {})
+
+    def test_by_container(self):
+        jf = "a" * 64
+        px = "b" * 64
+        with tempfile.TemporaryDirectory() as proc:
+            for pid, line in ((242640, f"0::/system.slice/docker-{jf}.scope"),
+                              (242700, f"0::/system.slice/docker-{jf}.scope"),
+                              (3100, f"0::/docker/{px}")):
+                os.makedirs(os.path.join(proc, str(pid)))
+                with open(os.path.join(proc, str(pid), "cgroup"), "w") as f:
+                    f.write(line + "\n")
+            use = gpu.by_container(gpu.parse_pmon(PMON) | {999: {"sm": 50.0, "enc": 0.0, "dec": 0.0}}, proc)
+        self.assertEqual(use, {jf[:12]: 20.0, px[:12]: 5.0})
 
 
 class TestServer(unittest.TestCase):

@@ -43,6 +43,9 @@ services:
     # Needs the NVIDIA Container Toolkit on the host.
     # environment:
     #   NVIDIA_DRIVER_CAPABILITIES: utility
+    # Lets it see which containers' processes are on the GPU.  It still has
+    # no capabilities, so it can't signal anything it sees.
+    # pid: host
     # deploy:
     #   resources:
     #     reservations:

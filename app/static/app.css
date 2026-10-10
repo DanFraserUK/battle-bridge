@@ -278,6 +278,13 @@ button { font: inherit; color: inherit; }
   font-variant-numeric: tabular-nums;
 }
 .tile .nums button:hover { border-color: var(--orange); }
+.tile .nums button.busy { border-color: var(--gold); color: var(--gold); animation: busy-pulse 1.6s ease-in-out infinite; }
+@keyframes busy-pulse {
+  50% { box-shadow: 0 0 6px 1px rgba(253, 213, 15, .55); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tile .nums button.busy { animation: none; }
+}
 
 /* --- drawer tab ----------------------------------------------------------- */
 
