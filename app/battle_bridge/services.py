@@ -6,12 +6,14 @@ no URLs with tokens in them).
 
 import base64
 import hashlib
+import http.client
 import json
 import re
 import socket
 import ssl
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
 
@@ -24,6 +26,21 @@ class NotConfigured(ServiceError):
     pass
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Requests carry keys, and urllib would copy them to wherever a
+    redirect points.  So a redirect is an answer, not somewhere to go."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def _open(req, timeout, context):
+    handlers = [_NoRedirect()]
+    if context is not None:
+        handlers.append(urllib.request.HTTPSHandler(context=context))
+    return urllib.request.build_opener(*handlers).open(req, timeout=timeout)
+
+
 def _request(url, method="GET", headers=None, body=None, timeout=6, context=None):
     data = json.dumps(body).encode() if body is not None else None
     h = {"Accept": "application/json", "User-Agent": "battle-bridge"}
@@ -32,7 +49,7 @@ def _request(url, method="GET", headers=None, body=None, timeout=6, context=None
     h.update(headers or {})
     req = urllib.request.Request(url, data=data, method=method, headers=h)
     try:
-        with urllib.request.urlopen(req, timeout=timeout, context=context) as r:
+        with _open(req, timeout, context) as r:
             raw = r.read()
             return r.status, dict(r.headers), raw
     except urllib.error.HTTPError as e:
@@ -46,6 +63,8 @@ def get_json(url, headers=None, timeout=6, context=None, method="GET", body=None
     status, _, raw = _request(url, method, headers, body, timeout, context)
     if status in (401, 403):
         raise ServiceError(f"refused the key ({status}).  Check it on the setup page")
+    if 300 <= status < 400:
+        raise ServiceError(f"redirected ({status}).  Set its exact address on the setup page")
     if status >= 400:
         raise ServiceError(f"error {status}")
     try:
@@ -286,7 +305,7 @@ class PiHole:
 
 def unifi_context():
     """The gateway's certificate is self-signed, so it can't be checked the
-    usual way.  _check_fingerprint pins it instead, once pinned on the setup page."""
+    usual way.  _PinnedHTTPS checks it against the pin instead."""
     ctx = ssl.create_default_context()
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
@@ -312,28 +331,70 @@ def fingerprint(url, timeout=5):
     return hashlib.sha256(der).hexdigest()
 
 
-def _check_fingerprint(url, fingerprint_, timeout=5):
-    if not fingerprint_:
-        return
-    got = fingerprint(url, timeout)
-    want = fingerprint_.replace(":", "").lower()
-    if got != want:
-        raise ServiceError("the gateway's certificate has changed.  Not sending the key")
+class _PinnedHTTPS(http.client.HTTPSConnection):
+    """A connection that refuses to go on unless the certificate it got is
+    the pinned one.  Checked on the same connection that then carries the
+    key, so nothing can swap in between."""
+
+    def __init__(self, host, pin, timeout):
+        super().__init__(host, timeout=timeout, context=unifi_context())
+        self.pin = pin
+
+    def connect(self):
+        super().connect()
+        der = self.sock.getpeercert(binary_form=True)
+        if hashlib.sha256(der).hexdigest() != self.pin:
+            self.close()
+            raise ServiceError("the gateway's certificate has changed.  Not sending the key.  "
+                               "Pin it again on the setup page if you replaced it")
+
+
+def _unifi_get(base, path, key, pin, timeout=6):
+    """GET a UniFi API path.  Never follows redirects, so the key only ever
+    goes to the pinned gateway."""
+    u = urllib.parse.urlsplit(base)
+    if u.scheme == "https":
+        conn = _PinnedHTTPS(u.netloc, pin, timeout)
+    else:   # only reachable through the test override; settings insist on https
+        conn = http.client.HTTPConnection(u.netloc, timeout=timeout)
+    try:
+        conn.request("GET", u.path.rstrip("/") + path,
+                     headers={"X-API-KEY": key, "Accept": "application/json", "User-Agent": "battle-bridge"})
+        r = conn.getresponse()
+        status, raw = r.status, r.read()
+    except ServiceError:
+        raise
+    except (OSError, http.client.HTTPException) as e:
+        raise ServiceError(f"no answer ({e})") from None
+    finally:
+        conn.close()
+    if status in (401, 403):
+        raise ServiceError(f"refused the key ({status}).  Check it on the setup page")
+    if status >= 300:
+        raise ServiceError(f"error {status}")
+    try:
+        return json.loads(raw or b"null")
+    except ValueError:
+        raise ServiceError("answered, but not with JSON") from None
 
 
 def unifi(base, key, pin=""):
     _need(key)
-    _check_fingerprint(base, pin)
-    ctx = unifi_context()
-    h = {"X-API-KEY": key}
-    api = f"{base}/proxy/network/integration/v1"
-    sites = get_json(f"{api}/sites", h, context=ctx)
+    pin = (pin or "").replace(":", "").lower()
+    if base.startswith("https://") and not pin:
+        raise NotConfigured("pin its certificate on the setup page")
+
+    def get(path):
+        return _unifi_get(base, path, key, pin)
+
+    api = "/proxy/network/integration/v1"
+    sites = get(f"{api}/sites")
     site = ((sites or {}).get("data") or [{}])[0]
     sid = site.get("id")
     if not sid:
         raise ServiceError("no site found")
-    clients = get_json(f"{api}/sites/{sid}/clients?limit=1", h, context=ctx)
-    devices = get_json(f"{api}/sites/{sid}/devices?limit=200", h, context=ctx)
+    clients = get(f"{api}/sites/{sid}/clients?limit=1")
+    devices = get(f"{api}/sites/{sid}/devices?limit=200")
     devs = (devices or {}).get("data") or []
     out = {"site": site.get("name") or "Default", "clients": (clients or {}).get("totalCount"),
            "devices": len(devs), "offline": sum(1 for d in devs if (d.get("state") or "").upper() != "ONLINE")}
@@ -342,7 +403,7 @@ def unifi(base, key, pin=""):
     if gw:
         out["gateway"] = gw.get("name") or gw.get("model")
         try:
-            st = get_json(f"{api}/sites/{sid}/devices/{gw['id']}/statistics/latest", h, context=ctx)
+            st = get(f"{api}/sites/{sid}/devices/{urllib.parse.quote(str(gw['id']))}/statistics/latest")
             up = (st or {}).get("uplink") or {}
             out.update(uptime=st.get("uptimeSec"), cpu=st.get("cpuUtilizationPct"),
                        mem=st.get("memoryUtilizationPct"), wan_tx=up.get("txRateBps"), wan_rx=up.get("rxRateBps"))
@@ -350,7 +411,7 @@ def unifi(base, key, pin=""):
             out["stats_error"] = str(e)
     # WAN latency is only in the older API.  Use it when the key is accepted there.
     try:
-        hd = get_json(f"{base}/proxy/network/api/s/default/stat/health", h, context=ctx)
+        hd = get("/proxy/network/api/s/default/stat/health")
         wan = next((x for x in (hd or {}).get("data") or [] if x.get("subsystem") == "wan"), {})
         www = next((x for x in (hd or {}).get("data") or [] if x.get("subsystem") == "www"), {})
         if www.get("latency") is not None:

@@ -10,6 +10,7 @@ import json
 import os
 import re
 import subprocess
+import threading
 import time
 import urllib.request
 from dataclasses import dataclass, field
@@ -137,6 +138,36 @@ def disks_of(source, sysfs="/sys"):
     return sorted(set(out))
 
 
+_hung = {}      # mount -> the thread still stuck asking about it
+
+
+def statvfs(path, timeout=5):
+    """os.statvfs, but a network share whose server has gone away can't hang
+    the caller: after a few seconds it's reported as not answering, and
+    asked again only once the stuck call has come back."""
+    stuck = _hung.get(path)
+    if stuck is not None:
+        if stuck.is_alive():
+            raise OSError(f"{path} isn't answering (a network share whose server is down?)")
+        del _hung[path]
+    box = {}
+
+    def ask():
+        try:
+            box["st"] = os.statvfs(path)
+        except OSError as e:
+            box["err"] = e
+    t = threading.Thread(target=ask, daemon=True)
+    t.start()
+    t.join(timeout)
+    if t.is_alive():
+        _hung[path] = t
+        raise OSError(f"{path} isn't answering (a network share whose server is down?)")
+    if "err" in box:
+        raise box["err"]
+    return box["st"]
+
+
 def disks(s):
     try:
         table = mount_table(s.proc)
@@ -159,7 +190,7 @@ def disks(s):
         d = {"label": "System" if mount == "/" else os.path.basename(mount) or mount, "mount": mount,
              "fs": fstype, "mounted": True, "disks": disks_of(source, s.sys)}
         try:
-            st = os.statvfs(mount)
+            st = statvfs(mount)
             total = st.f_blocks * st.f_frsize
             free = st.f_bavail * st.f_frsize
             used = total - st.f_bfree * st.f_frsize

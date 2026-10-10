@@ -63,6 +63,9 @@ class H(BaseHTTPRequestHandler):
     def do_GET(self):
         p = urlsplit(self.path).path
         h = self.headers
+        if p.startswith("/redirect/"):
+            # Like a service sending its API somewhere else.  Keys mustn't follow.
+            return self.send(302, b"", {"Location": "http://127.0.0.1:1/stolen"})
         if p == "/plex/status/sessions":
             return self.send(200, PLEX) if h.get("X-Plex-Token") == KEY else self.send(401, {})
         if p == "/jellyfin/Sessions":

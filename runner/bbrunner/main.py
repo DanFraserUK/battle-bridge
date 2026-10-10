@@ -37,6 +37,12 @@ SCHEDULE = {
     "news": 86400,
 }
 DAILY = ("updates", "image_updates", "news")
+# Drop-in checks and panels can be slow (a find over a sleeping disk), so they
+# get a thread of their own instead of holding up the drive figures.
+OWN_THREAD = ("checks", "panels")
+# A failed hourly or daily check is tried again after this, not a day later:
+# it may only have failed because the network wasn't up yet after a boot.
+RETRY_FAILED = 1800
 
 
 class Runner:
@@ -55,6 +61,9 @@ class Runner:
                 self.facts[name]["checked"] = 0
         self.lock = threading.Lock()
         self.write_lock = threading.Lock()
+        # One run of each gatherer at a time ("Check for updates now" and the
+        # loop could otherwise both run checkupdates on the same database).
+        self.gather_locks = {name: threading.Lock() for name in SCHEDULE}
         self.stop = threading.Event()
         self._last_sig_check = 0
 
@@ -77,7 +86,10 @@ class Runner:
         return name != "news" or self.family == "arch"
 
     def due(self, name, every):
-        last = (self.facts.get(name) or {}).get("checked", 0)
+        fact = self.facts.get(name) or {}
+        last = fact.get("checked", 0)
+        if fact.get("error"):
+            every = min(every, RETRY_FAILED)
         if time.time() - last >= every:
             return True
         return self.stale(name, last)
@@ -134,9 +146,13 @@ class Runner:
     def gather(self, name, force=False):
         if not self.wanted(name):
             return False
-        every = SCHEDULE[name]
-        if not force and not self.due(name, every):
-            return False
+        with self.gather_locks[name]:
+            every = SCHEDULE[name]
+            if not force and not self.due(name, every):
+                return False
+            return self._gather_now(name)
+
+    def _gather_now(self, name):
         started = time.time()
         try:
             data = self._gather(name)
@@ -186,11 +202,12 @@ class Runner:
         return 1 if bad else 0
 
     def start(self):
-        """Quick facts on one thread, slow ones (hourly and daily) on another,
-        so a long update check never holds up the disk figures."""
-        quick = [n for n, every in SCHEDULE.items() if every < 3600]
+        """Quick facts on one thread, drop-ins on another, slow ones (hourly
+        and daily) on a third, so nothing slow holds up the drive figures."""
+        quick = [n for n, every in SCHEDULE.items() if every < 3600 and n not in OWN_THREAD]
         slow = [n for n, every in SCHEDULE.items() if every >= 3600]
         threads = [threading.Thread(target=self.loop, args=(quick, 15), daemon=True),
+                   threading.Thread(target=self.loop, args=(OWN_THREAD, 15), daemon=True),
                    threading.Thread(target=self.loop, args=(slow, 60), daemon=True)]
         for t in threads:
             t.start()

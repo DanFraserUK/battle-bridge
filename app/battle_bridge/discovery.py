@@ -176,6 +176,15 @@ def address(container, port, server, scheme="http", path="/"):
     return None
 
 
+def service_url(container, server):
+    """Where Battle Bridge itself reaches a service's API, or None."""
+    target = web_target(container)
+    if not target:
+        return None
+    url = address(container, target[0], server, target[2], "/")
+    return url.rstrip("/") if url else None
+
+
 def web_target(container):
     """(port, path, scheme) from labels or the built-in list, or None."""
     lab = container.get("labels") or {}

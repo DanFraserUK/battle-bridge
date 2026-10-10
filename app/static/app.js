@@ -247,9 +247,12 @@ function updateTile(t, c, now) {
   const nameEl = t.children[1];
   const a = nameEl.querySelector("a");
   if (c.link) {
-    if (!a || a.href !== c.link) {
+    // Compare with the link as given: a.href is the browser's tidied copy,
+    // which may never match, and would rebuild the link on every poll.
+    if (!a || a.dataset.link !== c.link) {
       const link = document.createElement("a");
       link.href = c.link;
+      link.dataset.link = c.link;
       link.target = "_blank";
       link.rel = "noopener noreferrer";
       link.textContent = c.label;

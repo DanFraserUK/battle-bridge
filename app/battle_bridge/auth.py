@@ -3,6 +3,7 @@
 import hashlib
 import hmac
 import secrets
+import threading
 import time
 
 ITERATIONS = 600_000
@@ -30,6 +31,9 @@ class Auth:
     def __init__(self, db, cfg):
         self.db = db
         self.cfg = cfg
+        # One guess at a time.  Otherwise many guesses sent at once would all
+        # be checked before the first failure was counted, skipping the lockout.
+        self.guess_lock = threading.Lock()
 
     def has_password(self):
         return bool(self.db.get_setting("password_hash"))
@@ -53,20 +57,30 @@ class Auth:
 
     def login(self, password, ip):
         """Returns (token, None) or (None, reason)."""
-        wait = self.locked_for()
-        if wait:
-            return None, f"Too many wrong passwords.  Try again in {wait // 60 + 1} minutes."
-        stored = self.db.get_setting("password_hash")
-        if not stored:
-            return None, "No password set yet.  Open the setup page."
-        if not check_password(password, stored):
-            self.failed(ip)
-            left = self.cfg.lockout_failures - self._recent_failures()
-            if left <= 0:
-                return None, f"Wrong password.  Locked for {self.cfg.lockout_minutes} minutes."
-            return None, "Wrong password."
-        self.db.conn().execute("DELETE FROM login_failures")
-        return self.new_session(), None
+        with self.guess_lock:
+            wait = self.locked_for()
+            if wait:
+                return None, _wait_message(wait)
+            stored = self.db.get_setting("password_hash")
+            if not stored:
+                return None, "No password set yet.  Open the setup page."
+            if not check_password(password, stored):
+                self.failed(ip)
+                wait = self.locked_for()
+                return None, "Wrong password." + (f"  {_wait_message(wait)}" if wait else "")
+            self.db.conn().execute("DELETE FROM login_failures")
+            return self.new_session(), None
+
+    def check_current(self, password, ip):
+        """(ok, reason) for the current password, when changing it."""
+        with self.guess_lock:
+            wait = self.locked_for()
+            if wait:
+                return False, _wait_message(wait)
+            if not check_password(str(password or ""), self.db.get_setting("password_hash")):
+                self.failed(ip)
+                return False, "The current password is wrong."
+            return True, None
 
     def failed(self, ip):
         """Count a wrong guess (password or setup code) towards the lockout."""
@@ -93,20 +107,17 @@ class Auth:
 
     def check_setup_code(self, code, ip):
         """(ok, reason).  Wrong codes count towards the same lockout as passwords."""
-        wait = self.locked_for()
-        if wait:
-            return False, f"Too many wrong tries.  Try again in {wait // 60 + 1} minutes."
-        want = self.db.get_setting("setup_code") or ""
-        got = "".join(ch for ch in str(code) if ch.isdigit())
-        if not want or not hmac.compare_digest(got, want.replace("-", "")):
-            self.failed(ip)
-            return False, "That isn't the setup code."
-        return True, None
-
-    def _recent_failures(self):
-        since = int(time.time()) - self.cfg.lockout_minutes * 60
-        return self.db.conn().execute(
-            "SELECT COUNT(*) FROM login_failures WHERE ts >= ?", (since,)).fetchone()[0]
+        with self.guess_lock:
+            wait = self.locked_for()
+            if wait:
+                return False, _wait_message(wait)
+            want = self.db.get_setting("setup_code") or ""
+            # ASCII digits only: compare_digest refuses other characters.
+            got = "".join(ch for ch in str(code) if ch in "0123456789")
+            if not want or not hmac.compare_digest(got, want.replace("-", "")):
+                self.failed(ip)
+                return False, "That isn't the setup code."
+            return True, None
 
     def valid(self, token):
         if not token:
@@ -118,3 +129,8 @@ class Auth:
     def logout(self, token):
         if token:
             self.db.conn().execute("DELETE FROM sessions WHERE token = ?", (token,))
+
+
+def _wait_message(seconds):
+    minutes = seconds // 60 + 1
+    return f"Too many wrong tries.  Try again in {minutes} minute{'s' if minutes != 1 else ''}."

@@ -78,7 +78,7 @@ class Stale(Exception):
 class Store:
     def __init__(self, db):
         self.db = db
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
         self._cache = None
         self._nets = None
         self._loaded = 0
@@ -110,28 +110,32 @@ class Store:
 
     def save(self, changes, rev):
         """Apply validated changes.  Raises Stale or Invalid."""
-        current = self.settings()
-        if rev != current["rev"]:
-            raise Stale()
-        new = copy.deepcopy(current)
-        for key, value in changes.items():
-            if key not in DEFAULTS:
-                raise Invalid(f"Unknown setting {key}.")
-            new[key] = VALIDATORS[key](value)
-        new["rev"] = current["rev"] + 1
+        # Check and write under one lock, so two saves from the same revision
+        # can't both succeed.
         with self.lock:
+            self._cache = None          # compare with what's stored, not a cached copy
+            current = self.settings()
+            if rev != current["rev"]:
+                raise Stale()
+            new = copy.deepcopy(current)
+            for key, value in changes.items():
+                if key not in DEFAULTS:
+                    raise Invalid(f"Unknown setting {key}.")
+                new[key] = VALIDATORS[key](value)
+            new["rev"] = current["rev"] + 1
             self.db.set_setting("settings", json.dumps(new))
             self._cache = None
-        return self.settings()
+            return self.settings()
 
     def reset_access(self):
         """Back to the default networks and no hostnames.  For the
         reset-access command, when a bad setting locks you out."""
-        s = self.settings()
-        s["allowed_nets"] = list(DEFAULTS["allowed_nets"])
-        s["allowed_hosts"] = []
-        s["rev"] += 1
         with self.lock:
+            self._cache = None
+            s = self.settings()
+            s["allowed_nets"] = list(DEFAULTS["allowed_nets"])
+            s["allowed_hosts"] = []
+            s["rev"] += 1
             self.db.set_setting("settings", json.dumps(s))
             self._cache = None
 
@@ -184,6 +188,10 @@ def split_host(host_header):
     if not host_header:
         return None
     h = host_header.strip().lower()
+    # No IPv6 scope ids (fe80::1%eth0): browsers don't send them, and the
+    # address ends up in places like the PC installer.
+    if "%" in h:
+        return None
     if h.startswith("["):
         end = h.find("]")
         if end < 0:
@@ -250,12 +258,16 @@ def _iface(v):
     return v
 
 
-def _url(v, what):
+def _url(v, what, server_ok=False, https_only=False):
     v = str(v or "").strip()
     if not v:
         return ""
-    if not re.fullmatch(r"https?://[A-Za-z0-9._~:/?#\[\]@!&()*+,;=%{}-]{1,500}", v):
+    # {server} only means something in tile links, where it's filled in.
+    chars = "A-Za-z0-9._~:/?#\\[\\]@!&()*+,;=%-" + ("{}" if server_ok else "")
+    if not re.fullmatch(f"https?://[{chars}]{{1,500}}", v):
         raise Invalid(f"{what} must be a full http:// or https:// address.")
+    if https_only and not v.startswith("https://"):
+        raise Invalid(f"{what} must start with https://.  The key is never sent unencrypted.")
     return v
 
 
@@ -270,7 +282,7 @@ def _links(v):
         url = str(url or "").strip()
         if not url:
             continue
-        out[name] = "none" if url == "none" else _url(url, f"The link for {name}")
+        out[name] = "none" if url == "none" else _url(url, f"The link for {name}", server_ok=True)
     return out
 
 
@@ -290,7 +302,7 @@ def _services(v):
 def _unifi(v):
     if not isinstance(v, dict):
         raise Invalid("Bad UniFi settings.")
-    url = _url(v.get("url"), "The UniFi address").rstrip("/")
+    url = _url(v.get("url"), "The UniFi address", https_only=True).rstrip("/")
     fp = str(v.get("fingerprint") or "").replace(":", "").strip().lower()
     if fp and not re.fullmatch(r"[0-9a-f]{64}", fp):
         raise Invalid("The certificate fingerprint should be 64 hex characters.")

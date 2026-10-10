@@ -13,6 +13,7 @@ string.  See examples/ in the repo.
 """
 
 import json
+import math
 import os
 import re
 import stat
@@ -186,7 +187,8 @@ def pick(data, key):
     if isinstance(cur, bool):
         return "yes" if cur else "no"
     if isinstance(cur, (int, float)):
-        return cur
+        # NaN and infinity aren't valid JSON: one would stop the page reading anything.
+        return cur if math.isfinite(cur) else None
     if isinstance(cur, str):
         return cur[:80]
     return None
