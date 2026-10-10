@@ -7,7 +7,8 @@ LOG_DIR=/var/log/battle-bridge/pc-jobs
 log="$LOG_DIR/reboot-$(date +%Y%m%d-%H%M%S).log"
 touch "$log" 2>/dev/null || log=/dev/null
 echo "▶ Reboot of $(hostname) requested from Battle Bridge, $(date '+%a %d %b %H:%M:%S')" | tee -a "$log"
-echo "Enter your sudo password to reboot now, or press Ctrl+C to cancel."
+echo "Rebooting needs root, so sudo asks for your password on this server."
+echo "Enter it to reboot now, or press Ctrl+C to cancel.  It goes over SSH, never to Battle Bridge."
 if sudo -v; then
   echo "Rebooting.  Battle Bridge will run the after-reboot checks when it's back." | tee -a "$log"
   sudo systemctl reboot

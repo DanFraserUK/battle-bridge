@@ -18,7 +18,8 @@ B=$'\e[1m'; G=$'\e[32m'; R=$'\e[31m'; Y=$'\e[33m'; N=$'\e[0m'
 die() { echo "${R}$*${N}" >&2; exit 1; }
 ask() { read -r -p "$1 [y/N] " ok </dev/tty || ok=n; [[ "$ok" =~ ^[Yy]$ ]]; }
 
-[ "$(id -u)" -eq 0 ] || die "Run it with sudo:  sudo bash $0"
+[ "$(id -u)" -eq 0 ] || die "Run it with sudo:  sudo bash $0
+It installs a system service and files in /usr/local, /etc and /var, which need root."
 
 if [ "${1:-}" = "--remove" ]; then
   cat <<TXT
@@ -69,6 +70,12 @@ ${B}This will:${N}
   - install and start bb-runner.service, running as $USER_NAME
 
 It doesn't touch any other service, compose file or sudoers rule.
+
+Why sudo: everything above is a system file or service, so it needs root.
+The runner itself then runs as $USER_NAME, not root.  The sudoers line lets
+it read drive health (SMART data), which only root can read, without a
+password.  It allows one read-only script, with no arguments, and nothing
+else.  To take it all out later:  sudo bash $0 --remove
 TXT
 command -v sudo >/dev/null || echo "${Y}Note: sudo isn't installed.  Drive health and the PC update job need it.${N}"
 command -v smartctl >/dev/null || echo "${Y}Note: smartctl isn't installed, so there's no drive health.  Install smartmontools.${N}"

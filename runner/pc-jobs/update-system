@@ -43,6 +43,9 @@ echo
 read -r -p "Carry on with the update? [y/N] " ok
 [[ "$ok" =~ ^[Yy]$ ]] || { note "Stopped before changing anything."; read -r -p "Press Enter to close." _; exit 0; }
 
+echo
+echo "Installing packages needs root, so sudo asks for your password next."
+echo "It's your password on this server.  It goes over SSH, never to Battle Bridge."
 rc=0
 case "$fam" in
   arch)

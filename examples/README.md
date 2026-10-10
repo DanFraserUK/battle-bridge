@@ -10,11 +10,15 @@ minute.  No restart needed.
 /etc/battle-bridge/panels.d/   a stat box from a JSON file or address
 ```
 
-For example:
+For example, this copies one example into place and opens it to edit:
 
 ```bash
 sudo cp examples/checks.d/backup-fresh.toml /etc/battle-bridge/checks.d/ && sudo nano /etc/battle-bridge/checks.d/backup-fresh.toml
 ```
+
+Both need sudo because those folders belong to root, on purpose.  If your
+own account could write there, anything running as you could add a job,
+and the runner would run it.
 
 The rules, so a web page can never run something you didn't write:
 

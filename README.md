@@ -33,40 +33,82 @@ desktop over SSH instead, so your password never goes near the web page.
 
 ## Setup
 
-1. On the server, make a folder, download `compose.yml` from the
+Each step says what it changes.  Only step 3 needs sudo.
+
+1. **Start it.**  On the server, this makes a `battle-bridge` folder,
+   downloads `compose.yml` from the
    [latest release](https://github.com/DanFraserUK/battle-bridge/releases/latest)
-   and start it:
+   into it, and starts two containers: Battle Bridge and its read-only
+   Docker proxy.  Nothing outside that folder and Docker changes.
 
    ```bash
    mkdir battle-bridge && cd battle-bridge && curl -fsSLO https://github.com/DanFraserUK/battle-bridge/releases/latest/download/compose.yml && docker compose up -d
    ```
 
+   No sudo needed if your account is in the `docker` group, which is usual
+   on a Docker server.  If Docker says "permission denied", it isn't: put
+   `sudo` in front of each `docker` command, or add yourself to the group.
+
    Want an NVIDIA GPU shown, or its own LAN address?  Uncomment those parts
    of `compose.yml` first.
 
-2. Open `http://<your server's address>:8080`.  The setup page asks for a
-   setup code to prove it's you.  Get it with
-   `docker logs battle-bridge 2>&1 | grep "setup code"`.  Then set a
-   password, add keys for the services it found, and you're done.
+2. **Set a password.**  Open `http://<your server's address>:8080`.  The
+   setup page asks for a setup code, to prove you're the person who started
+   it and not someone else on your network.  This reads it from the
+   container's log, and changes nothing:
 
-3. Optional: the host runner, for jobs, drives, updates and the reboot
-   light.  On the server, one command (it asks once before changing
-   anything):
+   ```bash
+   docker logs battle-bridge 2>&1 | grep "setup code"
+   ```
+
+   Then set a password, add keys for the services it found, and you're done.
+
+3. **Optional: the host runner**, for jobs, drives, updates and the reboot
+   light.  On the server:
 
    ```bash
    docker cp battle-bridge:/opt/battle-bridge/host ./battle-bridge-host && sudo bash battle-bridge-host/install-runner.sh
    ```
 
-4. Optional: PC jobs.  On the setup page, pick your terminal and SSH login,
-   download the link handler, and run it on your PC with
-   `bash ~/Downloads/battlebridge-pc-install.sh`.
+   The first half copies the installer out of the container, into a
+   `battle-bridge-host` folder.  The second half runs it with sudo, so it
+   asks for your password.  It needs root because it installs system parts:
+
+   - a systemd service, `bb-runner`, so the runner starts at boot
+   - the runner itself in `/usr/local/lib/battle-bridge`, owned by root so
+     nothing else can change it
+   - one sudoers line, so the runner can read drive health (SMART), which
+     only root can read, without asking for a password.  It allows one
+     read-only script, with no arguments, and nothing else.
+   - a `battlebridge` group, and folders in `/etc`, `/var/lib` and
+     `/var/log`
+
+   It lists all of that and asks before changing anything.  The runner then
+   runs as you, not as root.  `sudo bash battle-bridge-host/install-runner.sh --remove`
+   takes it all out again.
+
+4. **Optional: PC jobs.**  On the setup page, pick your terminal and SSH
+   login, download the link handler, and run it on your PC:
+
+   ```bash
+   bash ~/Downloads/battlebridge-pc-install.sh
+   ```
+
+   No sudo: it only writes two files in your home folder and tells your
+   desktop to open `battlebridge://` links with them.  Later, the Update
+   system and Reboot buttons open a terminal on your PC, logged in to the
+   server over SSH.  Those two ask for your sudo password in that terminal,
+   because updating packages and rebooting need root.  The password goes to
+   the server over SSH.  Battle Bridge never sees it.
 
 `docker exec battle-bridge python3 -m battle_bridge check` tries every data
-source once and says plainly what works.
+source once and says plainly what works.  It changes nothing.
 
-To update: `cd battle-bridge && docker compose pull && docker compose up -d`,
-then run the step 3 line again if you use the host runner.  To stay on one
-version, change `latest` in `compose.yml` to a version such as `1.0.0`.
+To update: `cd battle-bridge && docker compose pull && docker compose up -d`.
+That downloads the new image and restarts the container with it.  Your
+settings are kept.  If you use the host runner, run the step 3 line again
+to update it too.  To stay on one version, change `latest` in `compose.yml`
+to a version such as `1.0.0`.
 
 ## How links are found
 

@@ -564,6 +564,7 @@ body.setup-page { overflow: auto; }
 .checks-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 4px 18px; margin: 4px 0 8px; }
 .check { display: flex; gap: 8px; align-items: center; color: var(--fg); font-family: var(--mono); font-size: 14px; }
 .steps-list { display: grid; gap: 10px; padding-left: 22px; }
+ul.why { margin: 0; padding-left: 22px; display: grid; gap: 2px; }
 .flash {
   position: sticky; top: 10px; z-index: 5; margin: 0; padding: 10px 16px; border-radius: 8px;
   background: #13302f; border: 1px solid var(--cyan); color: var(--fg);
