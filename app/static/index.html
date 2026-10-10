@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Battle Bridge</title>
+<link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/vendor/xterm.css">
+<link rel="stylesheet" href="/static/app.css">
+<script src="/static/facts.js" defer></script>
+<script src="/static/services.js" defer></script>
+<script src="/static/vendor/xterm.js" defer></script>
+<script src="/static/vendor/addon-canvas.js" defer></script>
+<script src="/static/vendor/addon-fit.js" defer></script>
+<script src="/static/jobs.js" defer></script>
+<script src="/static/pcjobs.js" defer></script>
+<script src="/static/app.js" defer></script>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="mark-logo" aria-hidden="true"></span>BATTLE BRIDGE</div>
+  <div class="hostline">
+    <span id="hostname">–</span>
+    <span class="sep">·</span><span>up <b id="uptime">–</b></span>
+    <span class="sep">·</span><span id="clock">–</span>
+  </div>
+  <div class="topright">
+    <span id="reboot-light" class="light" hidden>Reboot needed</span>
+    <span id="conn" class="conn">Connecting…</span>
+    <a id="setup-link" class="btn ghost" href="/setup">Setup</a>
+    <button id="login-btn" class="btn" type="button">Log in</button>
+  </div>
+</header>
+
+<main class="bridge">
+
+  <section class="box" id="box-system" data-area="system">
+    <h2>System</h2>
+    <div class="sys">
+      <div class="sys-cpu">
+        <div class="col-name" id="cpu-name">CPU</div>
+        <div class="cpu-row">
+          <button class="figure big" type="button" data-series="cpu" data-label="CPU" data-unit="%">
+            <span class="lbl">CPU</span><span class="val" id="cpu-total">–</span>
+          </button>
+          <button class="figure big temp" type="button" data-series="cpu.temp" data-label="CPU temperature" data-unit="°C">
+            <span class="lbl">CPU temp</span><span class="val" id="cpu-temp">–</span>
+          </button>
+        </div>
+        <div class="cores" id="cores"></div>
+      </div>
+      <div class="sys-side">
+        <div class="col-name wide" id="kernel-name">Linux</div>
+        <button class="figure mem" type="button" data-series="mem" data-label="Memory" data-unit="%">
+          <span class="lbl">Memory</span><span class="val" id="mem">–</span>
+          <svg class="bar" viewBox="0 0 100 6" preserveAspectRatio="none" aria-hidden="true"><rect class="bar-bg" width="100" height="6"/><rect class="bar-fg" id="mem-bar" width="0" height="6"/></svg>
+          <span class="sub" id="mem-sub"></span>
+        </button>
+        <button class="figure" type="button" data-series="net.rx" data-label="Network in" data-unit="B/s">
+          <span class="lbl">Net in</span><span class="val" id="net-rx">–</span>
+        </button>
+        <button class="figure" type="button" data-series="net.tx" data-label="Network out" data-unit="B/s">
+          <span class="lbl">Net out</span><span class="val" id="net-tx">–</span>
+        </button>
+        <button class="figure" type="button" data-series="load" data-label="Load (1 minute)" data-unit="">
+          <span class="lbl">Load</span><span class="val small" id="load">–</span>
+        </button>
+      </div>
+      <div class="sys-gpu" id="sys-gpu">
+        <div class="col-name" id="gpu-name">GPU</div>
+        <button class="figure" type="button" data-series="gpu.util" data-label="GPU use" data-unit="%">
+          <span class="lbl">GPU use</span><span class="val" id="gpu-util">–</span>
+        </button>
+        <button class="figure" type="button" data-series="gpu.temp" data-label="GPU temperature" data-unit="°C">
+          <span class="lbl">GPU temp</span><span class="val accent-gold" id="gpu-temp">–</span>
+        </button>
+        <button class="figure" type="button" data-series="gpu.mem" data-label="GPU memory" data-unit="MiB">
+          <span class="lbl">GPU memory</span><span class="val" id="gpu-mem">–</span>
+          <svg class="bar" viewBox="0 0 100 6" preserveAspectRatio="none" aria-hidden="true"><rect class="bar-bg" width="100" height="6"/><rect class="bar-fg cyan" id="gpu-mem-bar" width="0" height="6"/></svg>
+        </button>
+        <div class="sub" id="gpu-extra"></div>
+      </div>
+    </div>
+    <p class="err" id="host-err" hidden></p>
+  </section>
+
+  <section class="box" id="box-drives" data-area="drives">
+    <h2>Drives</h2>
+    <div class="box-body" id="drives"></div>
+  </section>
+
+  <section class="box" id="box-updates" data-area="updates">
+    <h2>Updates waiting</h2>
+    <div class="box-body" id="updates"></div>
+  </section>
+
+  <section class="box" id="box-services" data-area="services">
+    <h2>Services <span class="count" id="svc-count"></span></h2>
+    <div class="tiles" id="tiles"></div>
+    <p class="err" id="docker-err" hidden></p>
+  </section>
+
+  <section class="box" id="box-scheduled" data-area="scheduled">
+    <h2>Scheduled jobs</h2>
+    <div class="box-body" id="scheduled"></div>
+  </section>
+
+  <section class="box" id="box-media" data-area="media">
+    <h2>Media</h2>
+    <div class="box-body" id="media"></div>
+  </section>
+
+  <section class="box" id="box-downloads" data-area="downloads">
+    <h2>Downloads</h2>
+    <div class="box-body" id="downloads"></div>
+  </section>
+
+  <section class="box" id="box-network" data-area="network">
+    <h2>Network</h2>
+    <div class="box-body" id="network"></div>
+  </section>
+
+  <section class="box" id="box-panels" data-area="panels">
+    <h2>Your boxes</h2>
+    <div class="box-body" id="panels"></div>
+  </section>
+
+</main>
+
+<div class="drawer-tab"><button type="button" id="drawer-btn" class="btn ghost">ENGINEERING <span id="drawer-busy" hidden>· job running</span> ▲</button></div>
+
+<aside id="drawer" class="drawer" aria-label="Engineering">
+  <div class="drawer-head">
+    <h2>Engineering</h2>
+    <div class="tabs" role="tablist">
+      <button type="button" class="btn ghost on" data-tab="jobs">Jobs</button>
+      <button type="button" class="btn ghost" data-tab="history">History</button>
+    </div>
+    <span class="runner-state" id="runner-state"></span>
+    <button type="button" class="btn ghost close" id="drawer-close">Close ▼</button>
+  </div>
+  <div class="drawer-body">
+    <div class="jobs-col">
+      <div id="jobs-pane"></div>
+      <div id="history-pane" hidden></div>
+    </div>
+    <div class="term-col">
+      <div class="term-head"><b id="term-title">No job selected</b><span id="term-status"></span>
+        <button type="button" class="btn danger stopbtn" id="term-stop" hidden>Stop</button></div>
+      <div id="term" class="term"></div>
+      <div id="steps" class="steps" hidden></div>
+      <div class="term-foot" id="term-foot">Only jobs from the fixed list run here.  Typing goes to the running job.  Stop ends it.</div>
+    </div>
+  </div>
+</aside>
+
+<dialog id="reboot-dlg" class="dlg reboot-dlg">
+  <h3 id="reboot-title">Reboot the server</h3>
+  <div id="reboot-body"></div>
+  <div class="row" id="reboot-buttons"></div>
+</dialog>
+
+<dialog id="confirm-dlg" class="dlg confirm-dlg">
+  <h3>Are you sure?</h3>
+  <p id="confirm-text"></p>
+  <div class="row">
+    <button type="button" class="btn primary" id="confirm-yes">Run it</button>
+    <button type="button" class="btn ghost" data-close>Cancel</button>
+  </div>
+</dialog>
+
+<dialog id="graph-dlg" class="dlg graph-dlg">
+  <div class="dlg-head">
+    <h3 id="graph-title">Graph</h3>
+    <div class="range" id="graph-range">
+      <button type="button" class="btn ghost" data-hours="1">1 h</button>
+      <button type="button" class="btn ghost" data-hours="6">6 h</button>
+      <button type="button" class="btn ghost on" data-hours="24">24 h</button>
+    </div>
+    <button type="button" class="btn ghost close" data-close>Close</button>
+  </div>
+  <div class="graph-stats" id="graph-stats"></div>
+  <svg id="graph-svg" class="graph" viewBox="0 0 1600 520" preserveAspectRatio="none" aria-label="History graph"></svg>
+</dialog>
+
+<dialog id="login-dlg" class="dlg login-dlg">
+  <form id="login-form" method="dialog">
+    <h3>Log in</h3>
+    <p class="sub">Needed for any button that changes something.</p>
+    <label>Password <input type="password" id="login-pw" autocomplete="current-password" required></label>
+    <p class="err" id="login-err" hidden></p>
+    <div class="row">
+      <button type="submit" class="btn primary">Log in</button>
+      <button type="button" class="btn ghost" data-close>Cancel</button>
+    </div>
+  </form>
+</dialog>
+</body>
+</html>

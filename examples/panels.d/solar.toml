@@ -1,0 +1,21 @@
+# A box from any JSON file or address.  Only the figures listed below reach
+# the page.
+title = "Solar today"
+source = "http://192.168.1.60/api/today.json"
+link = "http://192.168.1.60/"
+every = "5m"
+
+[[show]]
+label = "generated"
+key = "today.kwh"
+unit = "kWh"
+
+[[show]]
+label = "peak"
+key = "today.peak_w"
+unit = "W"
+
+[[show]]
+label = "battery"
+key = "battery.percent"
+unit = "%"

@@ -1,0 +1,2 @@
+tank	ONLINE	21.8T	9.1T	12.7T	41%
+backup	DEGRADED	3.6T	2.0T	1.6T	55%

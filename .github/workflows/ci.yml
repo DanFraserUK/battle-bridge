@@ -1,0 +1,50 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # 3.10 is the oldest a host runner may have (Ubuntu 22.04).  The
+        # container uses 3.13.
+        python: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
+      - name: Shell scripts parse
+        run: for f in host/install-runner.sh runner/root-facts runner/pc-jobs/*; do bash -n "$f"; done
+      - name: Versions match
+        run: |
+          app=$(python -c "import sys; sys.path.insert(0, 'app'); import battle_bridge; print(battle_bridge.VERSION)")
+          runner=$(python -c "import sys; sys.path.insert(0, 'runner'); import bbrunner; print(bbrunner.VERSION)")
+          echo "app $app, runner $runner"
+          [ "$app" = "$runner" ]
+
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the image
+        run: docker build -t battle-bridge:test .
+      - name: It starts and answers its healthcheck
+        run: |
+          docker run -d --name bb --read-only --tmpfs /tmp --cap-drop ALL battle-bridge:test
+          for i in $(seq 1 30); do
+            [ "$(docker inspect -f '{{.State.Health.Status}}' bb)" = healthy ] && break
+            sleep 2
+          done
+          docker logs bb
+          docker inspect -f '{{.State.Health.Status}}' bb | grep -qx healthy
+          docker logs bb 2>&1 | grep -q "setup code"
+          docker exec bb test -f /opt/battle-bridge/host/install-runner.sh

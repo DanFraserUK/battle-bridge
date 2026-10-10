@@ -1,0 +1,108 @@
+#!/usr/bin/env python3
+"""A fake docker CLI for the runner's tests and the dev server.  Answers the
+handful of commands bb-runner uses, with believable output and no real work."""
+
+import os
+import sys
+import time
+
+HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+C = os.path.join(HERE, "compose")
+a = sys.argv[1:]
+j = " ".join(a)
+
+# name, project, image, update label, state
+ROWS = [("pihole", "dns", "pihole/pihole:latest", "", "running"),
+        ("plex", "media", "lscr.io/linuxserver/plex:latest", "", "running"),
+        ("jellyfin", "media", "jellyfin/jellyfin:latest", "", "running"),
+        ("sonarr", "downloads", "lscr.io/linuxserver/sonarr:latest", "", "running"),
+        ("radarr", "downloads", "lscr.io/linuxserver/radarr:latest", "", "running"),
+        ("myapp", "myapp", "myapp:local", "", "running"),
+        ("whoami", "tools", "traefik/whoami:latest", "", "running"),
+        ("oldthing", "gone", "busybox:latest", "", "exited"),
+        ("portainer", "", "portainer/portainer-ce:lts", "", "running")]
+
+
+def out(*lines):
+    print("\n".join(lines), flush=True)
+
+
+if a[:2] == ["compose", "version"]:
+    out("Docker Compose version v2.40.0")
+elif a[:1] == ["compose"]:
+    proj = a[a.index("-p") + 1] if "-p" in a else os.path.basename(os.getcwd())
+    sub = [x for x in a if x in ("pull", "up", "restart", "build", "logs", "config")]
+    sub = sub[0] if sub else ""
+    if sub == "config":
+        sys.exit(0)
+    if sub == "pull":
+        for layer in ("a1b2", "c3d4"):
+            for p in (20, 60, 100):
+                sys.stdout.write(f"\r {layer} Downloading [{'=' * (p // 5):<20}] {p:3d}%")
+                sys.stdout.flush()
+                time.sleep(0.05)
+            sys.stdout.write(f"\r {layer} Pull complete                         \n")
+        out(f"\x1b[32m✔\x1b[0m {proj} Pulled")
+    elif sub == "up":
+        out(f"Container {proj}  Recreated", f"Container {proj}  \x1b[32mStarted\x1b[0m")
+    elif sub == "restart":
+        out(f"Restarting {proj} ...")
+        time.sleep(0.3)
+        out("\x1b[32mdone\x1b[0m")
+    elif sub == "build":
+        out(f"Building {proj}")
+        ans = input("Base image changed.  Carry on? [y/N] ")
+        if not ans.lower().startswith("y"):
+            out("Stopped.")
+            sys.exit(1)
+        out("\x1b[32mBuilt\x1b[0m")
+    elif sub == "logs":
+        if "-f" in a:
+            i = 0
+            while True:
+                out(f"{time.strftime('%T')} {proj} line {i}")
+                i += 1
+                time.sleep(0.4)
+        for i in range(1, 21):
+            out(f"{time.strftime('%T')} {proj} log line {i}")
+    else:
+        out("fake compose: " + j)
+elif a[:2] == ["ps", "-a"] and "com.docker.compose.project" in j:
+    for name, proj, image, upd, st in ROWS:
+        wd = os.path.join(C, proj) if proj else ""
+        files = ""
+        if proj:
+            for fn in ("compose.yml", "docker-compose.yml"):
+                if os.path.exists(os.path.join(wd, fn)):
+                    files = os.path.join(wd, fn)
+        out("\t".join([name, proj, wd, files, image, upd, st]))
+elif a[:2] == ["ps", "-a"] and "{{.State}}" in j:
+    for name, _p, _i, _u, st in ROWS:
+        out(f"{name}\t{st}")
+elif a[:2] == ["ps", "-a"] and "{{.Image}}" in j and "table" not in j:
+    for name, _p, image, _u, _s in ROWS:
+        out(f"{name}\t{image}")
+elif a[:2] == ["ps", "-a"]:
+    out("NAMES     STATUS          IMAGE", "sonarr    Up 13 days      lscr.io/linuxserver/sonarr:latest",
+        "myapp     Up 4 hours      myapp:local")
+elif a[:2] == ["ps", "-q"]:
+    out("aaa111", "bbb222")
+elif a[:2] == ["ps", "--format"]:
+    out(*[r[2] for r in ROWS if r[4] == "running"])
+elif a[:1] == ["inspect"]:
+    if "RestartPolicy" in j:
+        out("/oldthing\tno")
+    else:
+        out("/plex\trunc\t[{\"Driver\":\"nvidia\",\"Capabilities\":[[\"gpu\"]]}]", "/sonarr\trunc\tnull")
+elif a[:1] == ["restart"]:
+    out(a[1])
+elif a[:2] == ["exec", "plex"]:
+    out("GPU 0: NVIDIA GeForce RTX 3060 (UUID: GPU-fake)")
+elif a[:2] == ["image", "ls"]:
+    out("REPOSITORY   TAG   IMAGE ID   SIZE", "<none>  <none>  abc123  412MB")
+elif a[:2] == ["image", "prune"]:
+    out("Total reclaimed space: 412MB")
+elif a[:1] == ["images"]:
+    out("sha256:aaa", "sha256:bbb")
+else:
+    out("fake docker: " + j)

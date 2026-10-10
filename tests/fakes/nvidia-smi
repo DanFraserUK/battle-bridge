@@ -1,0 +1,4 @@
+#!/bin/sh
+# Stand-in for nvidia-smi, with a made-up RTX 3060.
+u=$(( $(date +%S) % 40 ))
+echo "NVIDIA GeForce RTX 3060, $u, $(( 30 + u / 4 )), $(( 300 + u * 10 )), 12288, 22.5, 0"

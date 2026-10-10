@@ -1,0 +1,7 @@
+# Passes if a backup archive under 26 hours old exists.  find prints the
+# first one it finds, and stops.
+label = "Newest backup under 26 hours old"
+command = ["/usr/bin/find", "/mnt/backup", "-maxdepth", "1", "-name", "*.tar.gz", "-mmin", "-1560", "-print", "-quit"]
+expect = "not empty"
+every = "1h"
+note = "nightly backup to /mnt/backup"

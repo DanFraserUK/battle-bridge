@@ -1,0 +1,5 @@
+
+kernel.x86_64                          6.11.4-301.fc41                 updates
+podman.x86_64                          5:5.2.5-1.fc41                  updates
+Obsoleting Packages
+foo.noarch                             1.0-1.fc41                      updates

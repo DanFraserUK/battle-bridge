@@ -1,0 +1,5 @@
+services:
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest

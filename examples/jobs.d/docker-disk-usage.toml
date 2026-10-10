@@ -1,0 +1,4 @@
+# How much space Docker's images, containers and volumes take.  Reads only.
+label = "Docker disk usage"
+group = "Housekeeping"
+command = ["/usr/bin/docker", "system", "df"]

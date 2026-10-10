@@ -1,0 +1,59 @@
+#!/bin/bash
+# Battle Bridge: the only things bb-runner reads as root.  Drive health
+# (smartctl), btrfs and ZFS status, and the dates on Nginx Proxy Manager's
+# certificates.  Installed root-owned at /usr/local/lib/battle-bridge/root-facts
+# and allowed by one sudoers line.  Takes no arguments and changes nothing.
+set -u
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export LC_ALL=C
+if [ "$#" -ne 0 ]; then
+  echo "root-facts takes no arguments" >&2
+  exit 2
+fi
+
+if command -v smartctl >/dev/null; then
+  seen=" "
+  while read -r dev _ type _; do
+    case "$dev" in /dev/*) ;; *) continue ;; esac
+    case "$seen" in *" $dev "*) continue ;; esac
+    seen="$seen$dev "
+    echo "=== smart $dev"
+    smartctl -a --json=c -d "$type" "$dev" 2>/dev/null
+    echo
+  done < <(smartctl --scan-open 2>/dev/null)
+else
+  echo "=== note"
+  echo "smartctl isn't installed, so there's no drive health.  Install smartmontools."
+fi
+
+if command -v btrfs >/dev/null && command -v findmnt >/dev/null; then
+  findmnt -rn -t btrfs -o UUID,TARGET 2>/dev/null | sort -u -k1,1 | while read -r _ target; do
+    target=$(printf '%b' "$target")
+    echo "=== btrfs $target"
+    btrfs device stats "$target" 2>&1
+    echo "--- scrub"
+    btrfs scrub status "$target" 2>&1
+  done
+fi
+
+if command -v zpool >/dev/null; then
+  echo "=== zfs"
+  zpool list -H -o name,health,size,allocated,free,capacity 2>&1
+fi
+
+if command -v docker >/dev/null && command -v openssl >/dev/null; then
+  npm=$(docker ps --format '{{.ID}} {{.Image}}' 2>/dev/null | awk '/nginx-proxy-manager/ {print $1}')
+  if [ -n "$npm" ]; then
+    echo "=== certs"
+    for id in $npm; do
+      dir=$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/etc/letsencrypt"}}{{.Source}}{{end}}{{end}}' "$id" 2>/dev/null)
+      [ -n "$dir" ] && [ -d "$dir/live" ] || continue
+      for pem in "$dir"/live/*/fullchain.pem; do
+        [ -f "$pem" ] || continue
+        echo "--- $(basename "$(dirname "$pem")")"
+        openssl x509 -in "$pem" -noout -subject -enddate 2>&1
+      done
+    done
+  fi
+fi
+echo "=== end"

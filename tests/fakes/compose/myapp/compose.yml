@@ -1,0 +1,4 @@
+services:
+  myapp:
+    build: .
+    image: myapp:local
