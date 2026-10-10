@@ -2,7 +2,10 @@
 
 A full-screen dashboard for a Linux home server running Docker.  Live stats,
 a tile for every container, what's waiting to update, drive health, and the
-everyday jobs as buttons.  Built to stay on your home network.
+everyday jobs as buttons.  Built to stay on your home network.  Original
+work on my own server dashboard was human made with some AI webpage and
+design, but I had £100 free claude cloud code credits so I burned them all
+this public version for the fun of it.
 
 ![The bridge at 2560x1440, with made-up data](docs/screenshot.png)
 
