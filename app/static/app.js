@@ -198,6 +198,20 @@ function iconClass(name) {
   for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   return `ic-${h % 6}`;
 }
+// One of eight light patterns per button.  The start comes from the
+// container's name, then each figure steps on by three, so no two figures
+// on a tile share one.
+function blinkClass(name, i) {
+  let h = 2166136261;
+  for (const ch of name) {
+    h ^= ch.charCodeAt(0);
+    h = Math.imul(h, 16777619);
+  }
+  h ^= h >>> 15;
+  h = Math.imul(h, 2246822507);
+  h ^= h >>> 13;
+  return `blink-${((h >>> 0) + i * 3) % 8}`;
+}
 function initials(label) {
   const words = label.replace(/[^A-Za-z0-9 ]/g, " ").split(/\s+/).filter(Boolean);
   if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
@@ -263,6 +277,7 @@ function makeTile(c) {
   tx.dataset.unit = "B/s";
   tx.title = "Network out, bits per second.  Click for 24 hours.";
   nums.append(cpu, mem, gpu, rx, tx);
+  [...nums.children].forEach((b, i) => b.classList.add(blinkClass(c.name, i)));
   t.append(ic, name, st, meta, nums);
   return t;
 }

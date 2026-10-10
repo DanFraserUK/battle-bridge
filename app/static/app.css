@@ -282,12 +282,26 @@ button { font: inherit; color: inherit; }
 .tile .nums button.busy {
   --glow: 253, 213, 15;
   border-color: rgb(var(--glow)); color: rgb(var(--glow));
-  animation: busy-pulse 1.2s ease-in-out infinite;
+  animation: busy-pulse 1.4s ease-in-out infinite;
 }
 .tile .nums button.net.busy { --glow: 110, 201, 215; }
 @keyframes busy-pulse {
   50% { background: rgba(var(--glow), .28); box-shadow: 0 0 10px 2px rgba(var(--glow), .8); }
 }
+/* Hard on/off, like a panel lamp. */
+@keyframes busy-blink {
+  0%, 49% { background: rgba(var(--glow), .28); box-shadow: 0 0 10px 2px rgba(var(--glow), .8); }
+  50%, 100% { background: none; box-shadow: none; }
+}
+/* Each button keeps one of these, so the lights drift against each other. */
+.tile .nums button.busy.blink-0 { animation-duration: 1.3s; animation-delay: -0.1s; }
+.tile .nums button.busy.blink-1 { animation-duration: 1.7s; animation-delay: -0.9s; }
+.tile .nums button.busy.blink-2 { animation-name: busy-blink; animation-duration: 0.9s; animation-delay: -0.3s; }
+.tile .nums button.busy.blink-3 { animation-duration: 2.1s; animation-delay: -1.4s; }
+.tile .nums button.busy.blink-4 { animation-name: busy-blink; animation-duration: 1.5s; animation-delay: -0.6s; }
+.tile .nums button.busy.blink-5 { animation-duration: 1.5s; animation-delay: -0.5s; }
+.tile .nums button.busy.blink-6 { animation-name: busy-blink; animation-duration: 2.4s; animation-delay: -1.8s; }
+.tile .nums button.busy.blink-7 { animation-duration: 1.9s; animation-delay: -1.1s; }
 @media (prefers-reduced-motion: reduce) {
   .tile .nums button.busy { animation: none; }
 }
