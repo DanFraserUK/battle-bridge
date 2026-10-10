@@ -1,6 +1,10 @@
 # Battle Bridge runner settings.  Everything here is optional: with nothing
-# set, it finds things for itself.  Restart the runner after a change:
-#   sudo systemctl restart bb-runner
+# set, it finds things for itself.
+#
+# This file belongs to root, so nothing else can change what the runner
+# checks.  Edit it with sudo:  sudo nano /etc/battle-bridge/runner.toml
+# Then restart the runner, which also needs sudo because it's a system
+# service:  sudo systemctl restart bb-runner
 
 # The drives box.  By default it shows every real filesystem, one entry per
 # filesystem, leaving out /boot, /efi and Docker's own folders.

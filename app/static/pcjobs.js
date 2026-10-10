@@ -57,7 +57,8 @@
     },
     "update-system": {
       title: "Update system",
-      intro: "A terminal has opened on your PC.  The update script runs on the server and asks for your sudo password there.",
+      intro: "A terminal has opened on your PC, logged in to the server.  The update script runs there.  "
+        + "It asks for your sudo password, because installing packages needs root.  The password goes over SSH, never to this page.",
       steps: [
         ["It asks before changing anything.  On Arch it shows the latest news first.", null],
         ["Then the package manager runs (pacman and your AUR helper, apt, or dnf), then it says whether a reboot is needed.", null],
@@ -143,7 +144,8 @@
     R.seenDown = false;
     openLink("reboot");
     rebootBody(h("p", { class: "phase wait" }, "A terminal has opened on your PC."),
-      h("p", { class: "sub" }, "Enter your sudo password there to reboot, or press Ctrl+C there to cancel."));
+      h("p", { class: "sub" }, "Rebooting needs root, so it asks for your sudo password there.  "
+        + "Enter it to reboot, or press Ctrl+C to cancel.  The password goes over SSH, never to this page."));
     rebootButtons(h("button", { type: "button", class: "btn ghost", "data-reboot": "close" }, "Stop watching"));
     clearInterval(R.watch);
     R.watch = setInterval(rebootWatch, 3000);

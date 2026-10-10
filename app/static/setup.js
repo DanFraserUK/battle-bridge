@@ -283,8 +283,11 @@
       h("h3", { class: "minor" }, "Install the link handler"),
       ready ? h("ol", { class: "steps-list" },
         h("li", {}, "On your PC: ", h("a", { class: "btn small", href: "/api/pc/installer", download: "battlebridge-pc-install.sh" }, "Download the installer")),
-        h("li", {}, "Then run it as yourself (not root):", h("code", { class: "cmd" }, "bash ~/Downloads/battlebridge-pc-install.sh")),
-        h("li", {}, "The first time you press a PC job button, your browser asks whether to open battlebridge:// links.  Allow it."))
+        h("li", {}, "Then run it as yourself.  No sudo: it only writes two files in your home folder.",
+          h("code", { class: "cmd" }, "bash ~/Downloads/battlebridge-pc-install.sh")),
+        h("li", {}, "The first time you press a PC job button, your browser asks whether to open battlebridge:// links.  Allow it."),
+        h("li", {}, "Update system and Reboot then ask for your sudo password in that terminal, because they change the system.  "
+          + "It goes to the server over SSH.  Battle Bridge never sees it."))
         : h("p", { class: "pending" }, "Save an SSH login first."));
   }
 
@@ -301,8 +304,17 @@
         : h("span", { class: "v-warn" }, `Installed, version ${r.version}.  This page is ${r.app_version}: run the line below again to update it.`))
         : h("span", { class: "v-warn" }, "Not installed.")),
       r.problem && installed ? h("p", { class: "err" }, r.problem) : null,
-      h("p", {}, installed ? "To update it after a new release, run this on the server again:" : "To install it, run this on the server (it asks once before changing anything):"),
+      h("p", {}, installed ? "To update it after a new release, run this on the server again:" : "To install it, run this on the server:"),
       h("code", { class: "cmd" }, S.info.install_command),
+      h("p", { class: "snote" }, "The first half copies the installer out of this container.  "
+        + "The second half runs it with sudo, so it asks for your password.  It needs root because it installs system parts:"),
+      h("ul", { class: "snote why" },
+        h("li", {}, "a systemd service, so the runner starts at boot"),
+        h("li", {}, "the runner in /usr/local/lib/battle-bridge, owned by root so nothing else can change it"),
+        h("li", {}, "one sudoers line, so the runner can read drive health (only root can) without a password.  "
+          + "It allows one read-only script and nothing else."),
+        h("li", {}, "folders in /etc, /var/lib and /var/log")),
+      h("p", { class: "snote" }, "It lists all of that and asks before changing anything.  The runner itself then runs as you, not root."),
       h("p", { class: "snote" }, "Drop-in files go in /etc/battle-bridge/jobs.d, checks.d and panels.d.  See the examples folder in the repo."));
   }
 

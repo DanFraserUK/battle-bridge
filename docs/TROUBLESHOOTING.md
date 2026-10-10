@@ -54,14 +54,19 @@ is in the published `compose.yml`.  Still read-only.
 
 ## The host runner
 
+The runner is a system service, so restarting it needs sudo.  Reading its
+status doesn't.  Reading its log may, depending on your distro: if
+`journalctl` shows nothing, put `sudo` in front.
+
 - Status: `systemctl status bb-runner --no-pager`
 - Its log: `journalctl -u bb-runner -n 50 --no-pager`
 - Drive health missing: install `smartmontools`.  It shows a note saying so.
 - Arch, no updates counted: install `pacman-contrib` for `checkupdates`.
 - Debian and Ubuntu: the count comes from the package lists apt already
   has.  They refresh daily through `apt-daily.timer`.
-- "sudo refused root-facts": run the install line again.  It rewrites the
-  sudoers line.
+- "sudo refused root-facts": the one sudoers line that lets the runner
+  read drive health is missing or out of date.  Run the install line again.
+  It rewrites it.
 - The runner redoes its quick checks every time it starts, so a restart
   never shows stale figures: `sudo systemctl restart bb-runner`.
 - Don't add `ProtectKernelModules=yes` to the unit.  It hides
