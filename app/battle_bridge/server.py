@@ -63,6 +63,7 @@ class App:
             c["built_here"] = c["built_here"] or c["name"] in built
             c["link"] = discovery.tile_link(c, server, links, probed)
             c["label"] = discovery.label(c)
+            c["icon"] = discovery.icon(c)
             c["kind"] = discovery.service_kind(c)
             out.append(c)
         return out

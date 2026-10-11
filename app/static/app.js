@@ -287,7 +287,19 @@ function updateTile(t, c, now) {
   t.classList.remove("st-up", "st-warn", "st-down");
   t.classList.add(cls);
   const ic = t.children[0];
-  setText(ic, initials(c.label));
+  const src = c.icon ? `/static/icons/${c.icon}.svg` : null;
+  const img = ic.querySelector("img");
+  if (src) {
+    if (!img || img.getAttribute("src") !== src) {
+      const im = document.createElement("img");
+      im.src = src;
+      im.alt = "";
+      ic.replaceChildren(im);
+    }
+  } else if (img || ic.textContent !== initials(c.label)) {
+    ic.replaceChildren(document.createTextNode(initials(c.label)));
+  }
+  ic.classList.toggle("has-img", !!src);
   const nameEl = t.children[1];
   const a = nameEl.querySelector("a");
   if (c.link) {

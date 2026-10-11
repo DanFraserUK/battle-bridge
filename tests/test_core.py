@@ -154,6 +154,16 @@ class TestDiscovery(unittest.TestCase):
         base.update(kw)
         return base
 
+    def test_icons(self):
+        self.assertEqual(discovery.icon(self.c(image="lscr.io/linuxserver/sonarr:latest")), "sonarr")
+        self.assertEqual(discovery.icon(self.c(image="pihole/pihole:latest")), "pi-hole")
+        self.assertIsNone(discovery.icon(self.c(image="myapp:local")))
+        self.assertEqual(discovery.icon(self.c(image="myapp:local", labels={"battlebridge.icon": "grafana"})), "grafana")
+        self.assertIsNone(discovery.icon(self.c(image="myapp:local", labels={"battlebridge.icon": "../x"})))
+        icons = ROOT / "app" / "static" / "icons"
+        for image, name in discovery.ICONS.items():
+            self.assertTrue((icons / f"{name}.svg").is_file(), image)
+
     def test_image_names(self):
         self.assertEqual(discovery.image_name("lscr.io/linuxserver/plex:latest"), "plex")
         self.assertEqual(discovery.image_name("pihole/pihole"), "pihole")

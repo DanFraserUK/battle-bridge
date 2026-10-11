@@ -254,6 +254,8 @@ button { font: inherit; color: inherit; }
   font-weight: 800; font-size: 15px;
   color: #14181f;
 }
+.mono-icon.has-img { background: var(--card); border: 1px solid var(--line); padding: 6px; }
+.mono-icon img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .ic-0 { background: var(--gold); }
 .ic-1 { background: var(--cyan); }
 .ic-2 { background: var(--orange); }
