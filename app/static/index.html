@@ -95,7 +95,17 @@
   </section>
 
   <section class="box" id="box-services" data-area="services">
-    <h2>Services <span class="count" id="svc-count"></span></h2>
+    <h2 class="with-tools">Services <span class="count" id="svc-count"></span>
+      <span class="sorts" id="svc-sort" role="group" aria-label="Sort services">
+        <span class="sorts-lbl">Sort</span>
+        <button type="button" data-sort="ip">IP</button>
+        <button type="button" data-sort="name">Name</button>
+        <button type="button" data-sort="cpu">CPU</button>
+        <button type="button" data-sort="mem">Memory</button>
+        <button type="button" data-sort="gpu">GPU</button>
+        <button type="button" data-sort="net">Network</button>
+      </span>
+    </h2>
     <div class="tiles" id="tiles"></div>
     <p class="err" id="docker-err" hidden></p>
   </section>

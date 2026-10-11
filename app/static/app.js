@@ -346,6 +346,100 @@ function busy(v) {
   return v != null && v.toFixed(1) !== "0.0";
 }
 
+// --- sorting -----------------------------------------------------------------
+
+// Live figures are smoothed and the order only changes every 30 seconds,
+// so tiles don't jump about.
+const RESORT_MS = 30000;
+const SORTS = ["ip", "name", "cpu", "mem", "gpu", "net"];
+const sorter = { key: "ip", order: null, last: 0, smooth: new Map() };
+try {
+  const saved = localStorage.getItem("bb.sort");
+  if (SORTS.includes(saved)) sorter.key = saved;
+} catch (e) { /* no storage: use the default */ }
+for (const b of document.querySelectorAll("#svc-sort button")) b.classList.toggle("on", b.dataset.sort === sorter.key);
+
+function liveFigures(c) {
+  if (c.state !== "running") return null;
+  return {
+    cpu: c.cpu,
+    mem: c.mem,
+    gpu: c.gpu,
+    net: c.net_rx == null ? null : c.net_rx + c.net_tx,
+  };
+}
+
+function smoothFigures(list) {
+  const seen = new Set();
+  for (const c of list) {
+    seen.add(c.name);
+    const now = liveFigures(c);
+    if (!now) {
+      sorter.smooth.delete(c.name);
+      continue;
+    }
+    const old = sorter.smooth.get(c.name) || {};
+    const out = {};
+    for (const k of Object.keys(now)) {
+      if (now[k] == null) out[k] = old[k] ?? null;
+      else if (old[k] == null) out[k] = now[k];
+      else out[k] = old[k] * 0.75 + now[k] * 0.25;
+    }
+    sorter.smooth.set(c.name, out);
+  }
+  for (const name of [...sorter.smooth.keys()]) if (!seen.has(name)) sorter.smooth.delete(name);
+}
+
+function sortList(list) {
+  const key = sorter.key;
+  if (key === "ip") return list;
+  if (key === "name") return [...list].sort((a, b) => a.label.localeCompare(b.label));
+  const names = list.map((c) => c.name);
+  const sameSet = sorter.order && sorter.order.length === names.length && names.every((n) => sorter.order.includes(n));
+  if (!sameSet || Date.now() - sorter.last >= RESORT_MS) {
+    // Busiest first.  Stopped, or no figure, at the end in IP order.
+    const value = (c) => (sorter.smooth.get(c.name) || {})[key];
+    sorter.order = [...list].sort((a, b) => {
+      const va = value(a);
+      const vb = value(b);
+      if (va == null && vb == null) return 0;
+      if (va == null) return 1;
+      if (vb == null) return -1;
+      return vb - va;
+    }).map((c) => c.name);
+    sorter.last = Date.now();
+  }
+  const byName = new Map(list.map((c) => [c.name, c]));
+  return sorter.order.map((n) => byName.get(n));
+}
+
+function setSort(key) {
+  if (!SORTS.includes(key)) return;
+  sorter.key = key;
+  sorter.order = null;
+  try {
+    localStorage.setItem("bb.sort", key);
+  } catch (e) { /* not kept, which is fine */ }
+  for (const b of document.querySelectorAll("#svc-sort button")) b.classList.toggle("on", b.dataset.sort === key);
+  if (state.live) renderServices(state.live.containers, state.live.docker_error);
+}
+
+// Tiles glide from their old places to their new ones.
+function glide(box, before) {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  for (const t of box.children) {
+    const old = before.get(t);
+    if (!old) continue;
+    const now = t.getBoundingClientRect();
+    const dx = old.left - now.left;
+    const dy = old.top - now.top;
+    if (dx || dy) {
+      t.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }],
+        { duration: 600, easing: "ease-in-out" });
+    }
+  }
+}
+
 function renderServices(list, err) {
   const errEl = $("docker-err");
   errEl.hidden = !err;
@@ -353,17 +447,24 @@ function renderServices(list, err) {
   if (!list) return;
   const box = $("tiles");
   const existing = new Map([...box.children].map((t) => [t.dataset.name, t]));
+  const before = new Map([...box.children].map((t) => [t, t.getBoundingClientRect()]));
   const now = state.live.now;
   let up = 0;
-  list.forEach((c, i) => {
+  let moved = false;
+  smoothFigures(list);
+  sortList(list).forEach((c, i) => {
     let t = existing.get(c.name);
     if (!t) t = makeTile(c);
     existing.delete(c.name);
     updateTile(t, c, now);
-    if (box.children[i] !== t) box.insertBefore(t, box.children[i] || null);
+    if (box.children[i] !== t) {
+      box.insertBefore(t, box.children[i] || null);
+      moved = true;
+    }
     if (c.state === "running") up++;
   });
   existing.forEach((t) => t.remove());
+  if (moved) glide(box, before);
   setText($("svc-count"), `${up} of ${list.length} running`);
 }
 
@@ -512,6 +613,8 @@ document.addEventListener("click", (ev) => {
   if (fig) { openGraph(fig); return; }
   const close = ev.target.closest("[data-close]");
   if (close) { close.closest("dialog").close(); return; }
+  const sort = ev.target.closest("#svc-sort button");
+  if (sort) { setSort(sort.dataset.sort); return; }
   const range = ev.target.closest("#graph-range button");
   if (range) { graph.hours = Number(range.dataset.hours); loadGraph(); }
 });
