@@ -33,7 +33,7 @@ def wait_done(m, rid, secs=20):
 class TestProjects(unittest.TestCase):
     def test_found_from_labels(self):
         p = {x["name"]: x for x in jobs.projects()}
-        self.assertEqual(sorted(p), ["dns", "downloads", "gone", "media", "myapp", "tools"])
+        self.assertEqual(sorted(p), ["battle-bridge", "dns", "downloads", "gone", "media", "myapp", "tools"])
         self.assertEqual(p["media"]["containers"], ["plex", "jellyfin"])
         self.assertTrue(p["myapp"]["built_here"])
         self.assertFalse(p["media"]["built_here"])

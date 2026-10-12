@@ -84,6 +84,8 @@ button { font: inherit; color: inherit; }
   padding: 4px 12px; border-radius: 999px; font-weight: 700; font-size: 14px;
   background: #3a2f12; color: var(--amber); border: 1px solid var(--amber);
 }
+.light.update { background: #13303a; color: var(--cyan); border-color: var(--cyan); cursor: pointer; }
+.light.update:hover { background: #1a4150; }
 
 /* --- buttons -------------------------------------------------------------- */
 

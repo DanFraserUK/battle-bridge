@@ -304,6 +304,12 @@ BB.renderFacts = function (live) {
   const k = f && f.reboot;
   light.hidden = !(k && k.needed);
   if (k && k.needed) light.title = k.reasons.join("; ");
+  // Battle Bridge's own image, from the runner's daily image check.
+  const upd = document.getElementById("update-light");
+  const items = ((f && f.image_updates) || {}).items || [];
+  const self = items.find((i) => /(^|\/)battle-bridge(:|@|$)/.test(i.image) && i.status === "newer");
+  upd.hidden = !self;
+  upd.dataset.container = self ? self.container : "";
   if (!f) {
     for (const id of ["drives", "updates", "scheduled"]) rebuild(id, prob, () => pending(prob));
     return;

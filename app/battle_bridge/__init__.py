@@ -1,3 +1,3 @@
 """Battle Bridge: a dashboard for a Docker home server."""
 
-VERSION = "1.1.0"
+VERSION = "1.2.0"

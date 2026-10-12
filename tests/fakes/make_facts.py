@@ -90,6 +90,7 @@ facts = {
         {"container": "plex", "image": "lscr.io/linuxserver/plex:latest", "status": "newer"},
         {"container": "sonarr", "image": "lscr.io/linuxserver/sonarr:latest", "status": "newer"},
         {"container": "pihole", "image": "pihole/pihole:latest", "status": "current"},
+        {"container": "battle-bridge", "image": "ghcr.io/danfraseruk/battle-bridge:latest", "status": "newer"},
         {"container": "seerr", "image": "ghcr.io/seerr-team/seerr:latest", "status": "unknown", "error": "timed out"},
         {"container": "myapp", "image": "myapp:local", "status": "built here"},
     ]}, 5 * 3600),

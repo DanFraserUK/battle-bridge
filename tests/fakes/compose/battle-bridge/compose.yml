@@ -1,0 +1,3 @@
+services:
+  battle-bridge:
+    image: ghcr.io/danfraseruk/battle-bridge:latest
