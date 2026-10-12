@@ -113,6 +113,9 @@ settings are kept.  If you use the host runner, run the step 3 line again
 to update it too.  To stay on one version, change `latest` in `compose.yml`
 to a version such as `1.0.0`.
 
+With the host runner, an **Update available** button shows in the top bar
+within a day of a new release.  It runs the same pull and restart for you.
+
 ## How links are found
 
 For each container, in order: a link you type on the setup page, then Docker

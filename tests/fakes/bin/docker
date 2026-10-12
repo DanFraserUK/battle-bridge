@@ -19,6 +19,7 @@ ROWS = [("pihole", "dns", "pihole/pihole:latest", "", "running"),
         ("radarr", "downloads", "lscr.io/linuxserver/radarr:latest", "", "running"),
         ("myapp", "myapp", "myapp:local", "", "running"),
         ("whoami", "tools", "traefik/whoami:latest", "", "running"),
+        ("battle-bridge", "battle-bridge", "ghcr.io/danfraseruk/battle-bridge:latest", "", "running"),
         ("oldthing", "gone", "busybox:latest", "", "exited"),
         ("portainer", "", "portainer/portainer-ce:lts", "", "running"),
         # An image that brings its own compose labels, claiming to be part of

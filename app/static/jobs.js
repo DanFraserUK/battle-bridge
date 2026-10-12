@@ -314,6 +314,27 @@
   }
   BB.openDrawer = openDrawer;
 
+  // The top bar's "Update available": open the drawer and ask to update
+  // the project Battle Bridge's own container belongs to.
+  async function updateSelf(container) {
+    openDrawer();
+    setTab("jobs");
+    if (!BB.isLoggedIn()) return;
+    await refresh();
+    const p = J.services.find((s) => s.containers.includes(container));
+    if (!p) {
+      setStatus(`Couldn't find the compose folder for ${container}.  Use Update one project.`, "bad");
+      return;
+    }
+    const job = J.jobs.find((j) => j.name === "update-one");
+    if (!job) return;
+    $("confirm-text").textContent = job.confirm.replace("{arg}", p.folder) +
+      "  This page will drop out for a few seconds while it restarts.";
+    $("confirm-yes").dataset.job = "update-one";
+    $("confirm-yes").dataset.arg = p.folder;
+    $("confirm-dlg").showModal();
+  }
+
   function setTab(t) {
     J.tab = t;
     document.querySelectorAll(".tabs [data-tab]").forEach((b) => b.classList.toggle("on", b.dataset.tab === t));
@@ -325,6 +346,8 @@
     const t = ev.target;
     if (t.closest("#drawer-btn")) { J.open ? closeDrawer() : openDrawer(); return; }
     if (t.closest("#drawer-close")) { closeDrawer(); return; }
+    const ul = t.closest("#update-light");
+    if (ul) { updateSelf(ul.dataset.container); return; }
     if (t.closest("#drawer-login")) { document.getElementById("login-btn").click(); return; }
     const tab = t.closest(".tabs [data-tab]");
     if (tab) { setTab(tab.dataset.tab); return; }
