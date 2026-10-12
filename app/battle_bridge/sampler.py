@@ -111,6 +111,8 @@ class Sampler:
             values["mem"] = host["mem_pct"]
             values["net.rx"] = host["net_rx"]
             values["net.tx"] = host["net_tx"]
+            values["disk.read"] = host["disk_read"]
+            values["disk.write"] = host["disk_write"]
             values["cpu.temp"] = host["cpu_temp"]
         if g and g.get("ok"):
             values["gpu.util"] = g["util"]

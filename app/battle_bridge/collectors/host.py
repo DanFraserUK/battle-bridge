@@ -5,12 +5,17 @@ keeps the previous one.  The first call returns None for those.
 """
 
 import os
+import re
 import time
 from pathlib import Path
 
 # Interfaces that are not the server's own network connection.
 _SKIP_PREFIXES = ("lo", "docker", "veth", "br-", "virbr", "macv", "mv-", "ipvl", "tun", "tap", "ifb", "wg",
                   "tailscale", "zt", "cni", "flannel", "cali", "podman", "lxc", "vnet")
+
+# Whole physical disks.  Partitions, RAID, device-mapper, loop and zram are
+# left out, so nothing is counted twice.
+_DISK = re.compile(r"(sd[a-z]+|hd[a-z]+|vd[a-z]+|xvd[a-z]+|nvme\d+n\d+|mmcblk\d+)")
 
 
 class HostCollector:
@@ -20,6 +25,7 @@ class HostCollector:
         self.iface = iface
         self._cpu_prev = None
         self._net_prev = None
+        self._disk_prev = None
         self._names = None
 
     # --- raw readers ------------------------------------------------------
@@ -56,6 +62,19 @@ class HostCollector:
             if best is None or rx + tx > sum(rows[best]):
                 best = name
         return best, rows.get(best, (0, 0))
+
+    def _disk_bytes(self):
+        """Bytes read and written since boot, across whole disks."""
+        read = 0
+        written = 0
+        for line in self._read("diskstats").splitlines():
+            f = line.split()
+            if len(f) < 10 or not _DISK.fullmatch(f[2]):
+                continue
+            # Sectors here are always 512 bytes, whatever the disk uses.
+            read += int(f[5]) * 512
+            written += int(f[9]) * 512
+        return read, written
 
     def _meminfo(self):
         info = {}
@@ -161,6 +180,22 @@ class HostCollector:
             out["net_rx"] = out["net_tx"] = None
         if rx is not None:
             self._net_prev = (iface, rx, tx, now)
+
+        try:
+            d_read, d_written = self._disk_bytes()
+        except (OSError, ValueError):
+            d_read = None
+            d_written = None
+        if self._disk_prev and d_read is not None:
+            p_read, p_written, p_t = self._disk_prev
+            dt = now - p_t
+            out["disk_read"] = max(0, (d_read - p_read) / dt) if dt > 0 else 0
+            out["disk_write"] = max(0, (d_written - p_written) / dt) if dt > 0 else 0
+        else:
+            out["disk_read"] = None
+            out["disk_write"] = None
+        if d_read is not None:
+            self._disk_prev = (d_read, d_written, now)
 
         out["cpu_temp"] = self._cpu_temp()
         out["cpu_model"], out["kernel"] = self._cpu_and_kernel()

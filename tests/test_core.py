@@ -227,6 +227,19 @@ class TestHost(unittest.TestCase):
         self.assertIsNotNone(s["cpu"])
         self.assertEqual(len(s["cores"]), os.cpu_count())
         self.assertEqual(s["cpu_temp"], 41.0)
+        self.assertIn("disk_read", s)
+
+    def test_disk_bytes(self):
+        with tempfile.TemporaryDirectory() as proc:
+            with open(os.path.join(proc, "diskstats"), "w") as f:
+                f.write("   8       0 sda 100 0 2000 0 50 0 4000 0 0 0 0\n"
+                        "   8       1 sda1 90 0 1800 0 40 0 3000 0 0 0 0\n"
+                        " 259       0 nvme0n1 10 0 100 0 5 0 300 0 0 0 0\n"
+                        " 259       1 nvme0n1p1 10 0 100 0 5 0 300 0 0 0 0\n"
+                        "   9       0 md0 1 0 9999 0 1 0 9999 0 0 0 0\n"
+                        "   7       0 loop0 1 0 9999 0 1 0 9999 0 0 0 0\n")
+            h = HostCollector(proc, str(FAKES / "sys"))
+            self.assertEqual(h._disk_bytes(), (2100 * 512, 4300 * 512))
 
 
 class FakeDocker:

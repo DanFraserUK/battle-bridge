@@ -46,6 +46,7 @@ function fmtUnit(v, unit) {
   if (v == null) return "–";
   if (unit === "%") return fmtPct(v);
   if (unit === "B/s") return fmtRate(v);
+  if (unit === "bytes/s") return `${fmtBytes(v)}/s`;
   if (unit === "°C") return `${Math.round(v)}°C`;
   if (unit === "MiB") return fmtBytes(v * 1048576);
   return v.toFixed(2);
@@ -124,6 +125,8 @@ function renderHost(h, err) {
   setText($("mem-sub"), sub);
   setText($("net-rx"), fmtRate(h.net_rx));
   setText($("net-tx"), fmtRate(h.net_tx));
+  setText($("disk-read"), h.disk_read == null ? "–" : `${fmtBytes(h.disk_read)}/s`);
+  setText($("disk-write"), h.disk_write == null ? "–" : `${fmtBytes(h.disk_write)}/s`);
   setText($("load"), h.load ? h.load.map((v) => v.toFixed(2)).join("  ") : "–");
   renderCores(h.cores);
 }
