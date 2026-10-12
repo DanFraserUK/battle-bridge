@@ -4,6 +4,8 @@ name: Release image
 # registry as ghcr.io/<owner>/battle-bridge, tagged with the version
 # (1.2.3, 1.2, 1) and latest.  Then it attaches compose.yml to the release,
 # so .../releases/latest/download/compose.yml always gets the newest.
+# Last, it adds the standard update and install steps from
+# .github/release-steps.md to the release notes, under what you wrote.
 
 on:
   release:
@@ -54,3 +56,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release upload "$GITHUB_REF_NAME" compose.yml --clobber --repo "$GITHUB_REPOSITORY"
+      - name: Add the standard update and install steps to the release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          body=$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json body --jq .body)
+          if printf '%s' "$body" | grep -q '<!-- standard steps'; then
+            echo "Already there."
+            exit 0
+          fi
+          printf '%s\n\n%s\n' "$body" "$(cat .github/release-steps.md)" > notes.md
+          gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --notes-file notes.md
