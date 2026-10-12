@@ -62,6 +62,12 @@
         <button class="figure" type="button" data-series="net.tx" data-label="Network out" data-unit="B/s">
           <span class="lbl">Net out</span><span class="val" id="net-tx">–</span>
         </button>
+        <button class="figure" type="button" data-series="disk.read" data-label="Drives read" data-unit="bytes/s">
+          <span class="lbl">Drives read</span><span class="val" id="disk-read">–</span>
+        </button>
+        <button class="figure" type="button" data-series="disk.write" data-label="Drives write" data-unit="bytes/s">
+          <span class="lbl">Drives write</span><span class="val" id="disk-write">–</span>
+        </button>
         <button class="figure" type="button" data-series="load" data-label="Load (1 minute)" data-unit="">
           <span class="lbl">Load</span><span class="val small" id="load">–</span>
         </button>
@@ -95,7 +101,17 @@
   </section>
 
   <section class="box" id="box-services" data-area="services">
-    <h2>Services <span class="count" id="svc-count"></span></h2>
+    <h2 class="with-tools">Services <span class="count" id="svc-count"></span>
+      <span class="sorts" id="svc-sort" role="group" aria-label="Sort services">
+        <span class="sorts-lbl">Sort</span>
+        <button type="button" data-sort="ip">IP</button>
+        <button type="button" data-sort="name">Name</button>
+        <button type="button" data-sort="cpu">CPU</button>
+        <button type="button" data-sort="mem">Memory</button>
+        <button type="button" data-sort="gpu">GPU</button>
+        <button type="button" data-sort="net">Network</button>
+      </span>
+    </h2>
     <div class="tiles" id="tiles"></div>
     <p class="err" id="docker-err" hidden></p>
   </section>

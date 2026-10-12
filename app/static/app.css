@@ -34,7 +34,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--fg);
-  font: 17px/1.4 var(--sans);
+  font: 16px/1.4 var(--sans);
   overflow: hidden;
 }
 button { font: inherit; color: inherit; }
@@ -111,7 +111,7 @@ button { font: inherit; color: inherit; }
   display: grid;
   gap: var(--gap);
   grid-template-columns: repeat(12, minmax(0, 1fr));
-  grid-template-rows: 430px minmax(0, 1fr) 360px;
+  grid-template-rows: 470px minmax(0, 1fr) 335px;
   grid-template-areas:
     "system system system system system system drives drives drives updates updates updates"
     "services services services services services services services services services scheduled scheduled scheduled"
@@ -146,6 +146,16 @@ button { font: inherit; color: inherit; }
   text-transform: uppercase;
   color: var(--orange);
 }
+.box h2.with-tools { display: flex; align-items: center; }
+.sorts { display: flex; align-items: center; gap: 4px; margin-left: 28px; letter-spacing: .06em; }
+.sorts-lbl { color: var(--muted); font-size: 12px; font-weight: 500; margin-right: 4px; }
+.sorts button {
+  background: none; border: 1px solid var(--line); border-radius: 6px;
+  padding: 1px 9px; font-size: 12px; font-weight: 600; color: var(--muted);
+  cursor: pointer; text-transform: uppercase; letter-spacing: .06em;
+}
+.sorts button:hover { border-color: var(--orange); color: var(--fg); }
+.sorts button.on { border-color: var(--gold); color: var(--gold); }
 .box h2 .count { color: var(--muted); letter-spacing: 0; font-weight: 500; margin-left: 6px; }
 .pending { color: var(--muted); margin: 0; }
 .err { color: var(--red); margin: 8px 0 0; font-size: 15px; }
@@ -228,32 +238,34 @@ button { font: inherit; color: inherit; }
 .tiles {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-  gap: 10px;
+  gap: 8px;
   overflow: auto;
   align-content: start;
   min-height: 0;
 }
 .tile {
   display: grid;
-  grid-template-columns: 52px minmax(0, 1fr) auto;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
   gap: 2px 12px;
   align-items: center;
   background: var(--card-2);
   border: 1px solid var(--line);
   border-left: 4px solid var(--cyan);
   border-radius: 8px;
-  padding: 12px 14px;
+  padding: 8px 12px;
 }
 .tile.st-warn { border-left-color: var(--amber); }
 .tile.st-down { border-left-color: var(--red); }
 .mono-icon {
-  grid-row: span 3;
-  width: 52px; height: 52px;
+  grid-row: span 2;
+  width: 44px; height: 44px;
   border-radius: 10px;
   display: grid; place-items: center;
-  font-weight: 800; font-size: 17px;
+  font-weight: 800; font-size: 15px;
   color: #14181f;
 }
+.mono-icon.has-img { background: var(--card); border: 1px solid var(--line); padding: 6px; }
+.mono-icon img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .ic-0 { background: var(--gold); }
 .ic-1 { background: var(--cyan); }
 .ic-2 { background: var(--orange); }
@@ -269,15 +281,42 @@ button { font: inherit; color: inherit; }
 .tile.st-warn .state { color: var(--amber); }
 .tile.st-down .state { color: var(--red); }
 .tile .nums {
-  grid-column: 2 / span 2; grid-row: 3;
-  display: flex; gap: 6px; margin-top: 4px;
+  grid-column: 1 / -1; grid-row: 3;
+  display: flex; gap: 4px; margin-top: 5px;
 }
 .tile .nums button {
   background: none; border: 1px solid var(--line); border-radius: 6px;
-  padding: 1px 7px; font-size: 13px; color: var(--fg); cursor: pointer;
+  padding: 1px 5px; font-size: 12px; color: var(--fg); cursor: pointer; white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
 .tile .nums button:hover { border-color: var(--orange); }
+/* Lit while busy: gold for CPU and GPU, cyan for network. */
+.tile .nums button.busy {
+  --glow: 253, 213, 15;
+  border-color: rgb(var(--glow)); color: rgb(var(--glow));
+  animation: busy-pulse 1.4s ease-in-out infinite;
+}
+.tile .nums button.net.busy { --glow: 110, 201, 215; }
+@keyframes busy-pulse {
+  50% { background: rgba(var(--glow), .28); box-shadow: 0 0 10px 2px rgba(var(--glow), .8); }
+}
+/* Hard on/off, like a panel lamp. */
+@keyframes busy-blink {
+  0%, 49% { background: rgba(var(--glow), .28); box-shadow: 0 0 10px 2px rgba(var(--glow), .8); }
+  50%, 100% { background: none; box-shadow: none; }
+}
+/* Each button keeps one of these, so the lights drift against each other. */
+.tile .nums button.busy.blink-0 { animation-duration: 1.3s; animation-delay: -0.1s; }
+.tile .nums button.busy.blink-1 { animation-duration: 1.7s; animation-delay: -0.9s; }
+.tile .nums button.busy.blink-2 { animation-name: busy-blink; animation-duration: 0.9s; animation-delay: -0.3s; }
+.tile .nums button.busy.blink-3 { animation-duration: 2.1s; animation-delay: -1.4s; }
+.tile .nums button.busy.blink-4 { animation-name: busy-blink; animation-duration: 1.5s; animation-delay: -0.6s; }
+.tile .nums button.busy.blink-5 { animation-duration: 1.5s; animation-delay: -0.5s; }
+.tile .nums button.busy.blink-6 { animation-name: busy-blink; animation-duration: 2.4s; animation-delay: -1.8s; }
+.tile .nums button.busy.blink-7 { animation-duration: 1.9s; animation-delay: -1.1s; }
+@media (prefers-reduced-motion: reduce) {
+  .tile .nums button.busy { animation: none; }
+}
 
 /* --- drawer tab ----------------------------------------------------------- */
 
@@ -366,13 +405,13 @@ button { font: inherit; color: inherit; }
 .minor.first { border-top: 0; padding-top: 0; margin-top: 0; }
 .ulist { color: var(--muted); font-size: 14px; margin: -4px 0 0 32px; }
 
-.drive { display: grid; gap: 3px; }
+.drive { display: grid; gap: 1px; }
 .dhead { display: flex; align-items: baseline; gap: 10px; }
 .dmount { color: var(--muted); font-size: 14px; font-family: var(--mono); }
 .dhealth { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; }
 .dhealth .mark { width: 16px; height: 16px; font-size: 11px; }
 .dnums { display: flex; justify-content: space-between; color: var(--muted); font-size: 14px; }
-.drive .bar { height: 10px; margin-top: 2px; }
+.drive .bar { height: 10px; margin-top: 0; }
 
 .news { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 15px; }
 .news li { display: grid; grid-template-columns: 64px 1fr; gap: 8px; }

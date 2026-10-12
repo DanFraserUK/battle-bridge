@@ -20,6 +20,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "app"))
 
 from battle_bridge import VERSION, auth as auth_mod, config, discovery, store as store_mod  # noqa: E402
+from battle_bridge.collectors import gpu  # noqa: E402
 from battle_bridge.collectors.docker import DockerCollector  # noqa: E402
 from battle_bridge.collectors.host import HostCollector  # noqa: E402
 from battle_bridge.db import DB  # noqa: E402
@@ -153,6 +154,16 @@ class TestDiscovery(unittest.TestCase):
         base.update(kw)
         return base
 
+    def test_icons(self):
+        self.assertEqual(discovery.icon(self.c(image="lscr.io/linuxserver/sonarr:latest")), "sonarr")
+        self.assertEqual(discovery.icon(self.c(image="pihole/pihole:latest")), "pi-hole")
+        self.assertIsNone(discovery.icon(self.c(image="myapp:local")))
+        self.assertEqual(discovery.icon(self.c(image="myapp:local", labels={"battlebridge.icon": "grafana"})), "grafana")
+        self.assertIsNone(discovery.icon(self.c(image="myapp:local", labels={"battlebridge.icon": "../x"})))
+        icons = ROOT / "app" / "static" / "icons"
+        for image, name in discovery.ICONS.items():
+            self.assertTrue((icons / f"{name}.svg").is_file(), image)
+
     def test_image_names(self):
         self.assertEqual(discovery.image_name("lscr.io/linuxserver/plex:latest"), "plex")
         self.assertEqual(discovery.image_name("pihole/pihole"), "pihole")
@@ -216,6 +227,19 @@ class TestHost(unittest.TestCase):
         self.assertIsNotNone(s["cpu"])
         self.assertEqual(len(s["cores"]), os.cpu_count())
         self.assertEqual(s["cpu_temp"], 41.0)
+        self.assertIn("disk_read", s)
+
+    def test_disk_bytes(self):
+        with tempfile.TemporaryDirectory() as proc:
+            with open(os.path.join(proc, "diskstats"), "w") as f:
+                f.write("   8       0 sda 100 0 2000 0 50 0 4000 0 0 0 0\n"
+                        "   8       1 sda1 90 0 1800 0 40 0 3000 0 0 0 0\n"
+                        " 259       0 nvme0n1 10 0 100 0 5 0 300 0 0 0 0\n"
+                        " 259       1 nvme0n1p1 10 0 100 0 5 0 300 0 0 0 0\n"
+                        "   9       0 md0 1 0 9999 0 1 0 9999 0 0 0 0\n"
+                        "   7       0 loop0 1 0 9999 0 1 0 9999 0 0 0 0\n")
+            h = HostCollector(proc, str(FAKES / "sys"))
+            self.assertEqual(h._disk_bytes(), (2100 * 512, 4300 * 512))
 
 
 class FakeDocker:
@@ -247,13 +271,17 @@ class TestDocker(unittest.TestCase):
         with FakeDocker(23751, "--trouble") as fd:
             d = DockerCollector(f"http://127.0.0.1:{fd.port}")
             d.snapshot()
+            time.sleep(0.05)
             items = {c["name"]: c for c in d.snapshot()}
         self.assertEqual(d.hostname, "homelab")
         self.assertEqual(items["pihole"]["ip"], "192.168.1.200")        # macvlan address
         self.assertIsNone(items["jellyfin"]["ip"])                       # bridge: no LAN address
         self.assertEqual(items["jellyfin"]["ports"], [{"private": 8096, "public": 8096}])
         self.assertTrue(items["plex"]["host_network"])
-        self.assertTrue(items["plex"]["gpu"])
+        self.assertTrue(items["plex"]["gpu_capable"])
+        self.assertIsNone(items["plex"]["net_rx"])                       # host network: no counters
+        self.assertGreater(items["jellyfin"]["net_tx"], 0)
+        self.assertGreater(items["sonarr"]["net_rx"], 0)
         self.assertEqual(items["seerr"]["state"], "exited")
         self.assertTrue(items["myapp"]["built_here"])
         self.assertFalse(items["sonarr"]["built_here"])
@@ -261,6 +289,37 @@ class TestDocker(unittest.TestCase):
         self.assertEqual(items["sonarr"]["labels"]["com.docker.compose.project"], "downloads")
         self.assertIsNotNone(items["plex"]["cpu"])
         self.assertEqual(list(items)[0], "pihole")                      # LAN addresses first
+
+
+PMON = """# gpu         pid   type     sm    mem    enc    dec    jpg    ofa    command
+# Idx           #    C/G      %      %      %      %      %      %    name
+    0     242640     C      3      1     12     20      -      -    ffmpeg
+    0     242700     C      -      -      -      -      -      -    ffmpeg
+    0       3100     C      -      -      5      -      -      -    Plex Transcoder
+"""
+
+
+class TestGpu(unittest.TestCase):
+    def test_parse_pmon(self):
+        p = gpu.parse_pmon(PMON)
+        self.assertEqual(p[242640], {"sm": 3.0, "enc": 12.0, "dec": 20.0})
+        self.assertEqual(p[242700], {"sm": 0.0, "enc": 0.0, "dec": 0.0})
+
+    def test_nothing_running(self):
+        self.assertEqual(gpu.parse_pmon(PMON.splitlines()[0] + "\n    0  -  -  -  -  -  -  -  -  -\n"), {})
+
+    def test_by_container(self):
+        jf = "a" * 64
+        px = "b" * 64
+        with tempfile.TemporaryDirectory() as proc:
+            for pid, line in ((242640, f"0::/system.slice/docker-{jf}.scope"),
+                              (242700, f"0::/system.slice/docker-{jf}.scope"),
+                              (3100, f"0::/docker/{px}")):
+                os.makedirs(os.path.join(proc, str(pid)))
+                with open(os.path.join(proc, str(pid), "cgroup"), "w") as f:
+                    f.write(line + "\n")
+            use = gpu.by_container(gpu.parse_pmon(PMON) | {999: {"sm": 50.0, "enc": 0.0, "dec": 0.0}}, proc)
+        self.assertEqual(use, {jf[:12]: 20.0, px[:12]: 5.0})
 
 
 class TestServer(unittest.TestCase):

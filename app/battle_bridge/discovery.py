@@ -89,6 +89,73 @@ KNOWN = {
     "battle-bridge": ("Battle Bridge", None, None, None),
 }
 
+# Image name -> icon file in static/icons (no ".svg").  Icons are from
+# Dashboard Icons; see static/icons/README.txt.
+ICONS = {
+    "plex": "plex",
+    "pms-docker": "plex",
+    "jellyfin": "jellyfin",
+    "emby": "emby",
+    "embyserver": "emby",
+    "sonarr": "sonarr",
+    "radarr": "radarr",
+    "prowlarr": "prowlarr",
+    "lidarr": "lidarr",
+    "readarr": "readarr",
+    "bazarr": "bazarr",
+    "tautulli": "tautulli",
+    "transmission": "transmission",
+    "qbittorrent": "qbittorrent",
+    "deluge": "deluge",
+    "sabnzbd": "sabnzbd",
+    "nzbget": "nzbget",
+    "seerr": "seerr",
+    "overseerr": "overseerr",
+    "jellyseerr": "jellyseerr",
+    "ombi": "ombi",
+    "pihole": "pi-hole",
+    "adguardhome": "adguard-home",
+    "nginx-proxy-manager": "nginx-proxy-manager",
+    "portainer-ce": "portainer",
+    "portainer-ee": "portainer",
+    "home-assistant": "home-assistant",
+    "homeassistant": "home-assistant",
+    "grafana": "grafana",
+    "prometheus": "prometheus",
+    "uptime-kuma": "uptime-kuma",
+    "syncthing": "syncthing",
+    "nextcloud": "nextcloud",
+    "vaultwarden": "vaultwarden",
+    "immich-server": "immich",
+    "paperless-ngx": "paperless-ngx",
+    "audiobookshelf": "audiobookshelf",
+    "navidrome": "navidrome",
+    "photoprism": "photoprism",
+    "code-server": "visual-studio-code",
+    "gitea": "gitea",
+    "filebrowser": "filebrowser",
+    "netdata": "netdata",
+    "dozzle": "dozzle",
+    "heimdall": "heimdall",
+    "unifi-network-application": "unifi",
+    "mealie": "mealie",
+    "freshrss": "freshrss",
+    "calibre-web": "calibre-web",
+    "kavita": "kavita",
+    "wireguard-ui": "wireguard",
+    "cloudflare-ddns": "cloudflare",
+    "socket-proxy": "docker",
+    "docker-socket-proxy": "docker",
+    "watchtower": "watchtower",
+    "cloudflared": "cloudflare-zero-trust",
+    "postgres": "postgres",
+    "mariadb": "mariadb",
+    "mysql": "mysql",
+    "redis": "redis",
+    "valkey": "valkey",
+}
+ICON_NAME = re.compile(r"[a-z0-9-]{1,60}")
+
 # Service kind -> image names it's found by.  The first running container
 # with one of these images is the one Battle Bridge talks to.
 SERVICES = {
@@ -129,6 +196,15 @@ def label(container):
         return lab[:60]
     k = known(container)
     return k[0] if k else container["name"]
+
+
+def icon(container):
+    """The tile's icon file name, or None for the initials box.  The label
+    battlebridge.icon picks any file in static/icons."""
+    lab = (container.get("labels") or {}).get("battlebridge.icon")
+    if lab and ICON_NAME.fullmatch(lab):
+        return lab
+    return ICONS.get(image_name(container.get("image", "")))
 
 
 def service_kind(container):

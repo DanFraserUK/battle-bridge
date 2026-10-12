@@ -86,6 +86,12 @@ class Sampler:
             log.warning("docker: %s", e)
         if containers:
             self.prober.run(containers)
+            gpu_use = gpu_mod.by_container(gpu_mod.processes(self.cfg.nvidia_smi), self.cfg.host_proc)
+            for c in containers:
+                if c["id"] in gpu_use:
+                    c["gpu"] = gpu_use[c["id"]]
+                elif c["gpu_capable"] and c["state"] == "running":
+                    c["gpu"] = 0.0
         with self.lock:
             if containers is not None:
                 self.state["containers"] = containers
@@ -105,6 +111,8 @@ class Sampler:
             values["mem"] = host["mem_pct"]
             values["net.rx"] = host["net_rx"]
             values["net.tx"] = host["net_tx"]
+            values["disk.read"] = host["disk_read"]
+            values["disk.write"] = host["disk_write"]
             values["cpu.temp"] = host["cpu_temp"]
         if g and g.get("ok"):
             values["gpu.util"] = g["util"]
@@ -112,6 +120,11 @@ class Sampler:
             values["gpu.mem"] = g["mem_used"]
         for c in containers or []:
             values[f"ctr.{c['name']}.cpu"] = c["cpu"]
+            if c["gpu"] is not None:
+                values[f"ctr.{c['name']}.gpu"] = c["gpu"]
+            if c["net_rx"] is not None:
+                values[f"ctr.{c['name']}.rx"] = c["net_rx"]
+                values[f"ctr.{c['name']}.tx"] = c["net_tx"]
             if c["mem"] is not None:
                 values[f"ctr.{c['name']}.mem"] = c["mem"] / 1048576
         self.db.add_samples(int(time.time()), values)

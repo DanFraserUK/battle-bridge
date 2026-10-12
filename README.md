@@ -124,6 +124,7 @@ labels:
   battlebridge.port: "8080"        # the container's own port
   battlebridge.path: "/admin/"
   battlebridge.label: "My app"
+  battlebridge.icon: "grafana"     # any icon in app/static/icons
   # or the whole thing:  battlebridge.url: "https://{server}:8443/"
   # or no link at all:   battlebridge.link: "none"
   # updated last by "Update all", on its own:  battlebridge.update: "last"

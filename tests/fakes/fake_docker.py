@@ -53,6 +53,7 @@ if "--trouble" in sys.argv:
     _set("seerr", "exited")
 
 CPU = {}
+NET = {}
 SYS = [10**12]
 
 
@@ -118,10 +119,18 @@ def stats(name):
             mem = c[9]
             load = {"plex": 0.08, "jellyfin": 0.03, "sonarr": 0.01, "homeassistant": 0.02}.get(name, 0.002)
             CPU[name] = CPU.get(name, 0) + int(8 * 10**9 * load * random.uniform(0.5, 1.5))
-            return {"cpu_stats": {"cpu_usage": {"total_usage": CPU[name]}, "system_cpu_usage": SYS[0]},
-                    "memory_stats": {"usage": mem * 1048576 + 50 * 1048576,
-                                     "stats": {"inactive_file": 50 * 1048576},
-                                     "limit": 16 * 1024**3}}
+            # Bytes per call, about ten seconds apart: (in, out).
+            rate = {"jellyfin": (20000, 1500000), "sonarr": (2000, 500)}.get(name, (0, 0))
+            rx, tx = NET.get(name, (0, 0))
+            NET[name] = (rx + int(rate[0] * random.uniform(5, 15)), tx + int(rate[1] * random.uniform(5, 15)))
+            out = {"cpu_stats": {"cpu_usage": {"total_usage": CPU[name]}, "system_cpu_usage": SYS[0]},
+                   "memory_stats": {"usage": mem * 1048576 + 50 * 1048576,
+                                    "stats": {"inactive_file": 50 * 1048576},
+                                    "limit": 16 * 1024**3}}
+            # Docker gives no network counters for host-network containers.
+            if not c[5]:
+                out["networks"] = {"eth0": {"rx_bytes": NET[name][0], "tx_bytes": NET[name][1]}}
+            return out
 
 
 class H(BaseHTTPRequestHandler):

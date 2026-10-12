@@ -26,6 +26,14 @@ function fmtRate(n) {
   while (v >= 1000 && i < u.length - 1) { v /= 1000; i++; }
   return `${v.toFixed(v < 10 && i > 0 ? 1 : 0)} ${u[i]}`;
 }
+// Short form for tiles: bits per second without the unit, so "12k", "1.2M".
+function fmtRateShort(n) {
+  if (n == null) return "–";
+  const u = ["", "k", "M", "G"];
+  let v = n * 8, i = 0;
+  while (v >= 1000 && i < u.length - 1) { v /= 1000; i++; }
+  return `${v.toFixed(v < 10 && i > 0 ? 1 : 0)}${u[i]}`;
+}
 function fmtDuration(sec) {
   if (sec == null || sec < 0) return "–";
   const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600), m = Math.floor((sec % 3600) / 60);
@@ -38,6 +46,7 @@ function fmtUnit(v, unit) {
   if (v == null) return "–";
   if (unit === "%") return fmtPct(v);
   if (unit === "B/s") return fmtRate(v);
+  if (unit === "bytes/s") return `${fmtBytes(v)}/s`;
   if (unit === "°C") return `${Math.round(v)}°C`;
   if (unit === "MiB") return fmtBytes(v * 1048576);
   return v.toFixed(2);
@@ -116,6 +125,8 @@ function renderHost(h, err) {
   setText($("mem-sub"), sub);
   setText($("net-rx"), fmtRate(h.net_rx));
   setText($("net-tx"), fmtRate(h.net_tx));
+  setText($("disk-read"), h.disk_read == null ? "–" : `${fmtBytes(h.disk_read)}/s`);
+  setText($("disk-write"), h.disk_write == null ? "–" : `${fmtBytes(h.disk_write)}/s`);
   setText($("load"), h.load ? h.load.map((v) => v.toFixed(2)).join("  ") : "–");
   renderCores(h.cores);
 }
@@ -190,6 +201,20 @@ function iconClass(name) {
   for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   return `ic-${h % 6}`;
 }
+// One of eight light patterns per button.  The start comes from the
+// container's name, then each figure steps on by three, so no two figures
+// on a tile share one.
+function blinkClass(name, i) {
+  let h = 2166136261;
+  for (const ch of name) {
+    h ^= ch.charCodeAt(0);
+    h = Math.imul(h, 16777619);
+  }
+  h ^= h >>> 15;
+  h = Math.imul(h, 2246822507);
+  h ^= h >>> 13;
+  return `blink-${((h >>> 0) + i * 3) % 8}`;
+}
 function initials(label) {
   const words = label.replace(/[^A-Za-z0-9 ]/g, " ").split(/\s+/).filter(Boolean);
   if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
@@ -233,7 +258,29 @@ function makeTile(c) {
   mem.dataset.label = `${c.name} memory`;
   mem.dataset.unit = "MiB";
   mem.title = "Memory.  Click for 24 hours.";
-  nums.append(cpu, mem);
+  const gpu = document.createElement("button");
+  gpu.type = "button";
+  gpu.dataset.series = `ctr.${c.name}.gpu`;
+  gpu.dataset.label = `${c.name} GPU`;
+  gpu.dataset.unit = "%";
+  gpu.title = "GPU, its busiest engine (compute, encode or decode).  Click for 24 hours.";
+  gpu.hidden = true;
+  const rx = document.createElement("button");
+  rx.type = "button";
+  rx.className = "net";
+  rx.dataset.series = `ctr.${c.name}.rx`;
+  rx.dataset.label = `${c.name} network in`;
+  rx.dataset.unit = "B/s";
+  rx.title = "Network in, bits per second.  Click for 24 hours.";
+  const tx = document.createElement("button");
+  tx.type = "button";
+  tx.className = "net";
+  tx.dataset.series = `ctr.${c.name}.tx`;
+  tx.dataset.label = `${c.name} network out`;
+  tx.dataset.unit = "B/s";
+  tx.title = "Network out, bits per second.  Click for 24 hours.";
+  nums.append(cpu, mem, gpu, rx, tx);
+  [...nums.children].forEach((b, i) => b.classList.add(blinkClass(c.name, i)));
   t.append(ic, name, st, meta, nums);
   return t;
 }
@@ -243,7 +290,19 @@ function updateTile(t, c, now) {
   t.classList.remove("st-up", "st-warn", "st-down");
   t.classList.add(cls);
   const ic = t.children[0];
-  setText(ic, initials(c.label));
+  const src = c.icon ? `/static/icons/${c.icon}.svg` : null;
+  const img = ic.querySelector("img");
+  if (src) {
+    if (!img || img.getAttribute("src") !== src) {
+      const im = document.createElement("img");
+      im.src = src;
+      im.alt = "";
+      ic.replaceChildren(im);
+    }
+  } else if (img || ic.textContent !== initials(c.label)) {
+    ic.replaceChildren(document.createTextNode(initials(c.label)));
+  }
+  ic.classList.toggle("has-img", !!src);
   const nameEl = t.children[1];
   const a = nameEl.querySelector("a");
   if (c.link) {
@@ -272,9 +331,116 @@ function updateTile(t, c, now) {
   if (c.built_here) meta += " · built here";
   if (c.restarts) meta += ` · ${c.restarts} restarts`;
   setText(t.children[3], meta);
-  const [cpuBtn, memBtn] = t.children[4].children;
+  const [cpuBtn, memBtn, gpuBtn, rxBtn, txBtn] = t.children[4].children;
   setText(cpuBtn, c.cpu == null ? "– CPU" : `${c.cpu.toFixed(1)}% CPU`);
+  cpuBtn.classList.toggle("busy", busy(c.cpu));
   setText(memBtn, c.mem == null ? "– mem" : fmtBytes(c.mem, 0));
+  gpuBtn.hidden = c.gpu == null;
+  if (c.gpu != null) setText(gpuBtn, `${c.gpu.toFixed(1)}% GPU`);
+  gpuBtn.classList.toggle("busy", busy(c.gpu));
+  setText(rxBtn, `↓${fmtRateShort(c.net_rx)}`);
+  rxBtn.classList.toggle("busy", c.net_rx != null && fmtRateShort(c.net_rx) !== "0");
+  setText(txBtn, `↑${fmtRateShort(c.net_tx)}`);
+  txBtn.classList.toggle("busy", c.net_tx != null && fmtRateShort(c.net_tx) !== "0");
+}
+
+// Lit when the figure on the button isn't 0.0.
+function busy(v) {
+  return v != null && v.toFixed(1) !== "0.0";
+}
+
+// --- sorting -----------------------------------------------------------------
+
+// Live figures are smoothed and the order only changes every 30 seconds,
+// so tiles don't jump about.
+const RESORT_MS = 30000;
+const SORTS = ["ip", "name", "cpu", "mem", "gpu", "net"];
+const sorter = { key: "ip", order: null, last: 0, smooth: new Map() };
+try {
+  const saved = localStorage.getItem("bb.sort");
+  if (SORTS.includes(saved)) sorter.key = saved;
+} catch (e) { /* no storage: use the default */ }
+for (const b of document.querySelectorAll("#svc-sort button")) b.classList.toggle("on", b.dataset.sort === sorter.key);
+
+function liveFigures(c) {
+  if (c.state !== "running") return null;
+  return {
+    cpu: c.cpu,
+    mem: c.mem,
+    gpu: c.gpu,
+    net: c.net_rx == null ? null : c.net_rx + c.net_tx,
+  };
+}
+
+function smoothFigures(list) {
+  const seen = new Set();
+  for (const c of list) {
+    seen.add(c.name);
+    const now = liveFigures(c);
+    if (!now) {
+      sorter.smooth.delete(c.name);
+      continue;
+    }
+    const old = sorter.smooth.get(c.name) || {};
+    const out = {};
+    for (const k of Object.keys(now)) {
+      if (now[k] == null) out[k] = old[k] ?? null;
+      else if (old[k] == null) out[k] = now[k];
+      else out[k] = old[k] * 0.75 + now[k] * 0.25;
+    }
+    sorter.smooth.set(c.name, out);
+  }
+  for (const name of [...sorter.smooth.keys()]) if (!seen.has(name)) sorter.smooth.delete(name);
+}
+
+function sortList(list) {
+  const key = sorter.key;
+  if (key === "ip") return list;
+  if (key === "name") return [...list].sort((a, b) => a.label.localeCompare(b.label));
+  const names = list.map((c) => c.name);
+  const sameSet = sorter.order && sorter.order.length === names.length && names.every((n) => sorter.order.includes(n));
+  if (!sameSet || Date.now() - sorter.last >= RESORT_MS) {
+    // Busiest first.  Stopped, or no figure, at the end in IP order.
+    const value = (c) => (sorter.smooth.get(c.name) || {})[key];
+    sorter.order = [...list].sort((a, b) => {
+      const va = value(a);
+      const vb = value(b);
+      if (va == null && vb == null) return 0;
+      if (va == null) return 1;
+      if (vb == null) return -1;
+      return vb - va;
+    }).map((c) => c.name);
+    sorter.last = Date.now();
+  }
+  const byName = new Map(list.map((c) => [c.name, c]));
+  return sorter.order.map((n) => byName.get(n));
+}
+
+function setSort(key) {
+  if (!SORTS.includes(key)) return;
+  sorter.key = key;
+  sorter.order = null;
+  try {
+    localStorage.setItem("bb.sort", key);
+  } catch (e) { /* not kept, which is fine */ }
+  for (const b of document.querySelectorAll("#svc-sort button")) b.classList.toggle("on", b.dataset.sort === key);
+  if (state.live) renderServices(state.live.containers, state.live.docker_error);
+}
+
+// Tiles glide from their old places to their new ones.
+function glide(box, before) {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  for (const t of box.children) {
+    const old = before.get(t);
+    if (!old) continue;
+    const now = t.getBoundingClientRect();
+    const dx = old.left - now.left;
+    const dy = old.top - now.top;
+    if (dx || dy) {
+      t.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }],
+        { duration: 600, easing: "ease-in-out" });
+    }
+  }
 }
 
 function renderServices(list, err) {
@@ -284,17 +450,24 @@ function renderServices(list, err) {
   if (!list) return;
   const box = $("tiles");
   const existing = new Map([...box.children].map((t) => [t.dataset.name, t]));
+  const before = new Map([...box.children].map((t) => [t, t.getBoundingClientRect()]));
   const now = state.live.now;
   let up = 0;
-  list.forEach((c, i) => {
+  let moved = false;
+  smoothFigures(list);
+  sortList(list).forEach((c, i) => {
     let t = existing.get(c.name);
     if (!t) t = makeTile(c);
     existing.delete(c.name);
     updateTile(t, c, now);
-    if (box.children[i] !== t) box.insertBefore(t, box.children[i] || null);
+    if (box.children[i] !== t) {
+      box.insertBefore(t, box.children[i] || null);
+      moved = true;
+    }
     if (c.state === "running") up++;
   });
   existing.forEach((t) => t.remove());
+  if (moved) glide(box, before);
   setText($("svc-count"), `${up} of ${list.length} running`);
 }
 
@@ -443,6 +616,8 @@ document.addEventListener("click", (ev) => {
   if (fig) { openGraph(fig); return; }
   const close = ev.target.closest("[data-close]");
   if (close) { close.closest("dialog").close(); return; }
+  const sort = ev.target.closest("#svc-sort button");
+  if (sort) { setSort(sort.dataset.sort); return; }
   const range = ev.target.closest("#graph-range button");
   if (range) { graph.hours = Number(range.dataset.hours); loadGraph(); }
 });

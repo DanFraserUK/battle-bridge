@@ -4,6 +4,7 @@ Only GET requests are ever made.  The proxy refuses anything else anyway.
 """
 
 import json
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -24,6 +25,7 @@ class DockerCollector:
         self.base = base_url
         self.timeout = timeout
         self._cpu_prev = {}
+        self._net_prev = {}
         self._built = {}        # image id -> built on this machine?
         self.hostname = None
 
@@ -74,10 +76,13 @@ class DockerCollector:
                 "health": None,
                 "started": None,
                 "restarts": None,
-                "gpu": False,
+                "gpu_capable": False,
+                "gpu": None,
                 "cpu": None,
                 "mem": None,
                 "mem_limit": None,
+                "net_rx": None,
+                "net_tx": None,
             }
             try:
                 info = self._get(f"/containers/{cid}/json")
@@ -85,7 +90,10 @@ class DockerCollector:
                 entry["health"] = (st.get("Health") or {}).get("Status")
                 entry["started"] = _epoch(st.get("StartedAt"))
                 entry["restarts"] = info.get("RestartCount")
-                entry["gpu"] = _uses_gpu(info.get("HostConfig") or {})
+                env = (info.get("Config") or {}).get("Env") or []
+                # "utility" only means it can read nvidia-smi, like Battle Bridge itself.
+                monitor_only = "NVIDIA_DRIVER_CAPABILITIES=utility" in env
+                entry["gpu_capable"] = not monitor_only and _uses_gpu(info.get("HostConfig") or {})
             except DockerError:
                 pass
             if entry["state"] == "running":
@@ -96,6 +104,8 @@ class DockerCollector:
             out.append(entry)
         for gone in set(self._cpu_prev) - seen:
             del self._cpu_prev[gone]
+        for gone in set(self._net_prev) - seen:
+            del self._net_prev[gone]
         out.sort(key=_order)
         return out
 
@@ -131,6 +141,17 @@ class DockerCollector:
             cache = stats.get("inactive_file", stats.get("total_inactive_file", 0))
             entry["mem"] = max(0, usage - cache)
             entry["mem_limit"] = mem.get("limit")
+        nets = s.get("networks")
+        if nets:
+            rx = sum(n.get("rx_bytes", 0) for n in nets.values())
+            tx = sum(n.get("tx_bytes", 0) for n in nets.values())
+            now = time.time()
+            prev = self._net_prev.get(cid)
+            # Counters reset when a container restarts, so skip a drop.
+            if prev and now > prev[2] and rx >= prev[0] and tx >= prev[1]:
+                entry["net_rx"] = (rx - prev[0]) / (now - prev[2])
+                entry["net_tx"] = (tx - prev[1]) / (now - prev[2])
+            self._net_prev[cid] = (rx, tx, now)
 
 
 def _uses_gpu(hc):
